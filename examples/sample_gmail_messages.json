@@ -1,0 +1,23 @@
+[
+  {
+    "source": "gmail",
+    "id": "gmail-001",
+    "sender": "Prof. Chen <chen@asu.edu>",
+    "subject": "CSE598 HW3 deadline extended",
+    "text": "CSE598 HW3 deadline extended\nHi all, the deadline for Homework 3 in CSE598 (Agentic AI Systems) has been moved to September 12, 2026. Please submit via Canvas."
+  },
+  {
+    "source": "gmail",
+    "id": "gmail-002",
+    "sender": "ASU Registrar <registrar@asu.edu>",
+    "subject": "Course registration confirmation: CSE511",
+    "text": "Course registration confirmation: CSE511\nYou are now registered for CSE511 Data Processing at Scale, meeting Tuesdays/Thursdays 10:30-11:45am starting Fall 2026."
+  },
+  {
+    "source": "gmail",
+    "id": "gmail-003",
+    "sender": "LinkedIn <no-reply@linkedin.com>",
+    "subject": "5 new jobs match your profile",
+    "text": "5 new jobs match your profile\nCheck out these new job postings curated for you based on your recent activity."
+  }
+]
