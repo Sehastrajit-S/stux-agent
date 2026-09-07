@@ -12,15 +12,6 @@ ROOT = Path(__file__).parent
 sys.path.insert(0, str(ROOT / "src"))
 
 from extractor import extract  # noqa: E402
-from dashboard import generate_dashboard  # noqa: E402
-
-
-def load_sample_messages() -> list:
-    messages = []
-    for name in ("sample_gmail_messages.json", "sample_slack_messages.json"):
-        with open(ROOT / "examples" / name, encoding="utf-8") as f:
-            messages.extend(json.load(f))
-    return messages
 
 
 def load_gmail(max_results: int, query: str) -> list:
@@ -37,13 +28,13 @@ def load_slack(channel, limit: int) -> list:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Extract tasks and courses from Gmail and Slack messages."
+        description="Extract tasks and courses from live Gmail and/or Slack messages."
     )
     parser.add_argument(
         "--source",
-        choices=["sample", "gmail", "slack", "all"],
-        default="sample",
-        help="Where to read messages from. 'sample' needs no Gmail/Slack credentials.",
+        choices=["gmail", "slack", "all"],
+        default="all",
+        help="Which live source(s) to read from.",
     )
     parser.add_argument("--limit", type=int, default=10, help="Max messages per live source.")
     parser.add_argument(
@@ -57,20 +48,12 @@ def main():
     parser.add_argument(
         "--output", default=str(ROOT / "output" / "tasks_and_courses.json")
     )
-    parser.add_argument(
-        "--dashboard", default=str(ROOT / "output" / "dashboard.html")
-    )
-    parser.add_argument(
-        "--no-dashboard", action="store_true", help="Skip generating the HTML dashboard."
-    )
     args = parser.parse_args()
 
     if "OPENAI_API_KEY" not in os.environ:
         sys.exit("ERROR: set the OPENAI_API_KEY environment variable before running.")
 
     messages = []
-    if args.source in ("sample", "all"):
-        messages += load_sample_messages()
     if args.source in ("gmail", "all"):
         messages += load_gmail(args.limit, args.gmail_query)
     if args.source in ("slack", "all"):
@@ -96,11 +79,7 @@ def main():
 
     print(f"\n{len(relevant)} relevant task(s)/course(s) extracted out of {len(messages)} message(s).")
     print(f"Full results written to {out_path}")
-
-    if not args.no_dashboard:
-        dashboard_path = Path(args.dashboard)
-        generate_dashboard(relevant, dashboard_path)
-        print(f"Dashboard written to {dashboard_path} (open it in a browser)")
+    print("Run the Next.js dashboard (dashboard/) to view them: npm run dev, then open http://localhost:3000")
 
 
 if __name__ == "__main__":

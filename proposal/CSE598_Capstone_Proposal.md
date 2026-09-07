@@ -30,9 +30,8 @@ every message manually to avoid missing something.
 
 **Output.** A JSON list of records, each with:
 `{ type: "task" | "course", title, course_code, due_date, priority, source, summary }`,
-sorted by `due_date`, plus a self-contained HTML dashboard (`output/dashboard.html`)
-showing the same records as filterable cards with due-date status (overdue / due soon
-/ later).
+sorted by `due_date`, plus a Next.js dashboard (`dashboard/`) that reads that JSON file
+and renders it as filterable cards with due-date status (overdue / due soon / later).
 
 **Success / failure.** For a message that states or clearly implies a deadline or
 course fact:
@@ -67,7 +66,7 @@ those future actions depend on.
 - Per-message LLM-based classification and structured extraction (task vs. course vs.
   neither, title, course code, due date, priority).
 - A consolidated, due-date-sorted output list from a single batch fetch, viewable as
-  JSON or as a local HTML dashboard.
+  JSON or in a live-updating Next.js dashboard.
 
 **Out of scope this semester.**
 - Writing back to a calendar or to-do app.
@@ -81,22 +80,23 @@ those future actions depend on.
 **What it uses.** The OpenAI API (single call per message, model
 `gpt-4o-mini` by default) for extraction; the Gmail API
 (`google-api-python-client`, OAuth2) and the Slack Web API (`slack_sdk`) for live
-ingestion; a bundled pair of JSON fixture files for the default, credential-free
-reproducible run.
+ingestion; a Next.js app for the dashboard. There is no bundled sample/offline data —
+every run reads the requester's actual Gmail inbox and/or Slack channel.
 
 **What it does, step by step.**
-1. Load messages from the chosen `--source`: bundled sample fixtures (default), live
-   Gmail (filtered to Canvas/Instructure notifications by default), live Slack, or all
-   three.
+1. Load messages from the chosen `--source`: live Gmail (filtered to
+   `from:notifications@instructure.com` by default), live Slack, or both (`all`,
+   the default).
 2. Normalize each message to `{source, sender, subject/channel, text}`.
 3. Send each message's text to OpenAI with a fixed system prompt asking for one JSON
    object: `is_relevant`, `type`, `title`, `course_code`, `due_date`, `priority`,
    `summary`.
 4. Filter to relevant results, sort by `due_date`.
-5. Write the sorted list to `output/tasks_and_courses.json`, print a human-readable
-   summary line per message, and render `output/dashboard.html` — a self-contained
-   page (data embedded, no server) with stat counts and filterable, due-date-colored
-   cards.
+5. Write the sorted list to `output/tasks_and_courses.json` and print a
+   human-readable summary line per message.
+6. Separately, `dashboard/` (a small Next.js app) reads that JSON file through an API
+   route and renders it as stat counts plus filterable, due-date-colored cards,
+   polling every 8 seconds so it stays in sync with the latest run.
 
 **Why this is a reasonable starting point.** It is the simplest system that touches
 every piece the target problem needs — real ingestion clients for both sources, and
@@ -111,173 +111,90 @@ attribute (bad extraction vs. bad ingestion) when building the next phase.
 - [`src/gmail_client.py`](../src/gmail_client.py) — live Gmail ingestion, search-filtered
   to `from:notifications@instructure.com` by default.
 - [`src/slack_client.py`](../src/slack_client.py) — live Slack ingestion.
-- [`src/dashboard.py`](../src/dashboard.py) — renders extracted records as a
-  self-contained HTML dashboard.
-- [`examples/sample_gmail_messages.json`](../examples/sample_gmail_messages.json),
-  [`examples/sample_slack_messages.json`](../examples/sample_slack_messages.json) —
-  fixtures for the reproducible test case.
+- [`dashboard/pages/index.js`](../dashboard/pages/index.js),
+  [`dashboard/pages/api/tasks.js`](../dashboard/pages/api/tasks.js) — the Next.js
+  dashboard and the API route it reads data from.
 
 ## Section 4. Test Case and Baseline Output
 
-**Sample input.** The seven bundled fixture messages (four Gmail — all styled as real
-Canvas/Instructure notification emails, since that's the exact live filter used —
-three Slack):
-1. Gmail — Canvas: "Assignment Due Soon: Homework 3", CSE 598, due 2026-09-12.
-2. Gmail — Canvas: "New Announcement" — CSE 598 office hours moved to Thursday 2–3pm.
-3. Gmail — Canvas: "Grade Posted: Homework 2" (informational, not a task/course fact
-   worth tracking — irrelevant).
-4. Gmail — Canvas: "Enrollment Confirmation: CSE 511" with meeting time.
-5. Slack — advisor reminder: capstone proposal due tonight, Sept 6, 11:59 PM Phoenix.
-6. Slack — classmate asking about lunch (irrelevant).
-7. Slack — TA: CSE598 office hours moved to Thursdays 2–3pm this week.
+**Sample input.** A live pull from the student's own Gmail inbox
+(`from:notifications@instructure.com`) and/or a live Slack channel, via:
+```bash
+python run_baseline.py --source all --limit 10
+```
+The Gmail step requires completing an interactive OAuth consent screen in a browser
+the first time it runs (see Section 5) — this cannot be scripted or faked, so the
+concrete test case below reflects a real run against real Canvas notification emails
+and/or Slack messages, not synthetic data.
 
-**Expected behavior.** Messages 1, 2, 4, 5, and 7 should be flagged `is_relevant:
+**Expected behavior.** Canvas notification emails that state an assignment deadline,
+an announcement, or an enrollment/meeting-time fact should be flagged `is_relevant:
 true` with a reasonable `title` and, where stated, `course_code` and `due_date`.
-Messages 3 and 6 should be flagged `is_relevant: false`.
+Purely informational notifications (e.g. a posted grade) and off-topic Slack chatter
+should be flagged `is_relevant: false`.
 
-**Actual baseline output.** Ran `python run_baseline.py --source sample`:
+**Actual baseline output.** *[Run the command above with your own `OPENAI_API_KEY`
+and Gmail/Slack credentials configured (see Section 5), then paste the console output,
+the resulting `output/tasks_and_courses.json`, and a screenshot of both the terminal
+and the Next.js dashboard (`npm run dev` in `dashboard/`, then
+http://localhost:3000) here before submitting to Canvas.]*
 
-```
-Loaded 7 message(s) from source='sample'.
+**What worked / what did not work.** *[Fill in after running against your own
+inbox/Slack: note anything the model mis-flagged, e.g. whether it correctly resolved
+relative dates, whether any two records described the same underlying event, or
+whether an irrelevant notification (e.g. a grade-posted email) was correctly skipped.]*
 
-[RELEVANT] (gmail) 'Homework 3 Due Soon'
-[RELEVANT] (gmail) 'Office Hours Moved'
-[skip    ] (gmail) 'Grade Posted: Homework 2\nCSE 598: Agentic AI Systems\nYour gr'
-[RELEVANT] (gmail) 'Enrollment Confirmation for CSE 511'
-[RELEVANT] (slack) 'Capstone proposal submission'
-[skip    ] (slack) 'anyone want to grab lunch after class today lol'
-[RELEVANT] (slack) 'Change in Office Hours for CSE598'
-
-5 relevant task(s)/course(s) extracted out of 7 message(s).
-Full results written to output/tasks_and_courses.json
-Dashboard written to output/dashboard.html (open it in a browser)
-```
-
-`output/tasks_and_courses.json` (sorted by `due_date`):
-
-```json
-[
-  {
-    "is_relevant": true,
-    "type": "task",
-    "title": "Capstone proposal submission",
-    "course_code": "CSE598",
-    "due_date": "2023-09-06",
-    "priority": "high",
-    "summary": "The message includes a task to submit the capstone proposal by a specified deadline.",
-    "source": "slack",
-    "source_id": "slack-1757195000.000100"
-  },
-  {
-    "is_relevant": true,
-    "type": "task",
-    "title": "Homework 3 Due Soon",
-    "course_code": "CSE598",
-    "due_date": "2026-09-12",
-    "priority": "high",
-    "summary": "This email contains a task regarding the due date for Homework 3 in the CSE 598 course.",
-    "source": "gmail",
-    "source_id": "gmail-001"
-  },
-  {
-    "is_relevant": true,
-    "type": "course",
-    "title": "Office Hours Moved",
-    "course_code": "CSE598",
-    "due_date": null,
-    "priority": null,
-    "summary": "The message informs about a change in office hours for the CSE 598 course.",
-    "source": "gmail",
-    "source_id": "gmail-002"
-  },
-  {
-    "is_relevant": true,
-    "type": "course",
-    "title": "Enrollment Confirmation for CSE 511",
-    "course_code": "CSE511",
-    "due_date": null,
-    "priority": null,
-    "summary": "The message confirms enrollment in a course, providing specific details about the course schedule.",
-    "source": "gmail",
-    "source_id": "gmail-004"
-  },
-  {
-    "is_relevant": true,
-    "type": "course",
-    "title": "Change in Office Hours for CSE598",
-    "course_code": "CSE598",
-    "due_date": null,
-    "priority": "low",
-    "summary": "The message announces a temporary change in office hours for a specific course.",
-    "source": "slack",
-    "source_id": "slack-1757195200.000300"
-  }
-]
-```
-
-Plus `output/dashboard.html`: a card grid with stat counts (Total / Tasks / Courses /
-Overdue / Due ≤ 7d) and filter chips for All / Tasks / Courses / Gmail / Slack.
-
-*[Paste a screenshot of this terminal run and the dashboard page here before
-submitting to Canvas.]*
-
-**What worked.** Relevance classification was perfect on all 7 messages: both
-irrelevant messages (the grade-posted notification, the lunch small talk) were
-correctly skipped, and all 5 relevant messages (a homework deadline, an
-office-hours-change email, an enrollment confirmation, a proposal-deadline reminder,
-and a duplicate office-hours-change Slack message) were correctly flagged, with the
-right `course_code` attached to each.
-
-**What did not work.** Three concrete failures:
-1. The Slack reminder said only "today, September 6" with no year — the model filled
-   in `due_date: "2023-09-06"`, guessing the wrong year instead of leaving it null or
-   inferring the current year from context, a hallucination risk. This is consistent
-   with the limitation anticipated in Section 7 (the model isn't given the message's
-   actual timestamp).
-2. Messages 2 (Gmail) and 7 (Slack) both describe the same real-world event — CSE598
-   office hours moving — but arrive as two separate, undeduplicated records in the
-   output, exactly the "no deduplication across sources" weakness called out in
-   Section 7.
-3. Re-running the identical command produced a different `type` for the HW3 message
-   across two runs (`"course"` on one run, `"task"` on another, for effectively the
-   same input) — the single-call classification is not fully deterministic even at
-   the schema level, which the evaluation plan (Section 6) will need to account for
-   (e.g. by running each labeled example multiple times).
+**Preliminary validation (prior to removing bundled fixtures).** Before switching to
+this live-only version, the same extraction pipeline (`src/extractor.py`, unchanged)
+was run against 7 synthetic messages styled as real Canvas notification emails and
+Slack messages, correctly classifying 5/7 as relevant with the right course codes.
+That run also surfaced two genuine limitations that still apply here and are recorded
+in Section 7: (1) a message stating only "today, September 6" with no year was
+extracted with a hallucinated wrong year, and (2) the same underlying event reported
+via both Gmail and Slack produced two separate, undeduplicated records. See the
+git history (`5e0fb2c`) for the full transcript.
 
 ## Section 5. Reproducibility and Run Instructions
 
-**Dependencies.** Python 3.10+; see [`requirements.txt`](../requirements.txt)
+**Dependencies.** Python 3.10+ and Node 18+; see [`requirements.txt`](../requirements.txt)
 (`openai`, `python-dotenv`, `google-api-python-client`, `google-auth-httplib2`,
-`google-auth-oauthlib`, `slack_sdk`).
+`google-auth-oauthlib`, `slack_sdk`) and [`dashboard/package.json`](../dashboard/package.json)
+(`next`, `react`, `react-dom`).
 
 **Install.**
 ```bash
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env
+cp .env.example .env             # fill in OPENAI_API_KEY + Gmail/Slack credentials
+cd dashboard && npm install && cd ..
 ```
 
-**Required environment variables.** Only `OPENAI_API_KEY` is required for the
-reproducible test case below. Gmail/Slack credentials are only needed for the
-optional live-source modes. Full reference in
-[`examples/readme.md`](../examples/readme.md).
+**Required environment variables.** `OPENAI_API_KEY` is required for every run. At
+least one of Gmail (`GMAIL_CREDENTIALS_PATH`) or Slack (`SLACK_BOT_TOKEN`,
+`SLACK_CHANNEL_ID`) credentials is required, since there is no offline/sample mode.
+Full reference in [`examples/readme.md`](../examples/readme.md).
 
-**Exact command to run the baseline / test case:**
+**Exact commands to run the baseline and view it:**
 ```bash
-python run_baseline.py --source sample
+python run_baseline.py --source all --limit 10
+cd dashboard && npm run dev   # then open http://localhost:3000
 ```
 
-**Input location.** `examples/sample_gmail_messages.json`,
-`examples/sample_slack_messages.json`.
+**Input location.** Live Gmail inbox (via the Gmail API) and/or a live Slack channel
+(via `conversations.history`) — not a file in the repo.
 
-**Output location.** `output/tasks_and_courses.json`, `output/dashboard.html` (open
-directly in a browser, no server needed), plus a printed summary on stdout.
+**Output location.** `output/tasks_and_courses.json`, plus a printed summary on
+stdout; the Next.js dashboard at `http://localhost:3000` reads that file directly.
 
-**Known setup limitations.** Live Gmail auth opens a browser for OAuth consent (won't
-work headless without port forwarding); the Slack bot must be invited to its target
-channel before `conversations.history` can read it; neither is needed to reproduce
-the test case in Section 4.
+**Known setup limitations.** Live Gmail auth opens a browser for OAuth consent — a
+person must click through it once (won't work headless without port forwarding); the
+Slack bot must be invited to its target channel before `conversations.history` can
+read it. Because there is no bundled sample data, a grader without the student's own
+Gmail/Slack access cannot literally reproduce the exact same output — they can verify
+the code runs correctly against their *own* Gmail (the `from:notifications@instructure.com`
+filter works for any Canvas account) or Slack workspace, and should otherwise rely on
+the pasted output/screenshot in Section 4 as evidence.
 
 ## Section 6. Initial Evaluation Plan
 
@@ -326,7 +243,12 @@ calendar event or Slack reminder) gated behind user confirmation.
 
 **Risks.** API rate limits/cost if scaled to a full inbox history; Gmail/Slack API
 quota and OAuth app verification requirements if this needs to run for users other
-than the developer.
+than the developer; because the current version has no bundled sample data, a grader
+without their own Gmail/Slack access can read the code and the pasted output/screenshot
+in Section 4 but cannot re-execute the exact same run — a possible reintroduction of an
+offline fixture mode (fed by real, anonymized message exports) is worth considering
+next phase specifically to de-risk this for grading/demos.
 
-**Help / infrastructure needed.** None beyond a personal OpenAI API key, a Google
-Cloud project with the Gmail API enabled, and a Slack app/bot token for testing.
+**Help / infrastructure needed.** A personal OpenAI API key, a Google Cloud project
+with the Gmail API enabled, a Slack app/bot token for testing, and Node.js for the
+dashboard.
