@@ -4,10 +4,9 @@ from pathlib import Path
 
 from fastapi import APIRouter
 
-from config import CONFIG_PATH, load_config
-from gmail_client import CREDENTIALS_PATH, DEFAULT_QUERY
-
+from ..core.config import CONFIG_PATH, load_config
 from ..schemas import ConfigUpdate
+from ..services.gmail_client import CREDENTIALS_PATH, DEFAULT_QUERY
 
 router = APIRouter(prefix="/api", tags=["settings"])
 

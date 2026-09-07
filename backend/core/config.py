@@ -1,7 +1,8 @@
 import json
 from pathlib import Path
 
-CONFIG_PATH = Path(__file__).parent.parent / "config.json"
+# backend/core/config.py -> core -> backend -> repo root
+CONFIG_PATH = Path(__file__).resolve().parent.parent.parent / "config.json"
 
 DEFAULTS = {
     "gmailQuery": None,

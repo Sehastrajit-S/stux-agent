@@ -2,12 +2,12 @@
 
 This baseline is configured entirely through environment variables. Copy `.env.example`
 (repo root) to `.env` and fill in your values, or export them in your shell. The
-backend (`src/backend/main.py`) loads this same `.env` file, since it's the process that
+backend (`backend/main.py`) loads this same `.env` file, since it's the process that
 actually talks to Gmail and OpenAI — the dashboard never touches these values.
 
 **Required for every run:**
 - `OPENAI_API_KEY` — OpenAI API key for the single-call extraction step (used by
-  `src/extractor.py`).
+  `backend/services/extractor.py`).
 - `OPENAI_MODEL` (optional, defaults to `gpt-4o-mini`).
 - `GMAIL_CREDENTIALS_PATH` (default `credentials.json`) — OAuth client secret JSON
   downloaded from Google Cloud Console (Gmail API enabled, "Desktop app" credential type).
@@ -17,35 +17,41 @@ actually talks to Gmail and OpenAI — the dashboard never touches these values.
 - `GMAIL_QUERY` (optional, defaults to `from:notifications@instructure.com`) — Gmail
   search syntax restricting which emails are pulled.
 
-**There is no offline/sample mode.** Both `run_baseline.py` and the backend only read
-live Gmail — every run needs real, current credentials. The OAuth flow opens a
-browser window on first run; this step is interactive and must be completed by a
-person (it cannot be scripted).
+**There is no offline/sample mode.** The backend only reads live Gmail — every run
+needs real, current credentials. The OAuth flow opens a browser window on first run;
+this step is interactive and must be completed by a person (it cannot be scripted).
 
 ## Non-secret settings (`config.json`)
 
 `GMAIL_QUERY` and the message limit can also be set in `config.json` at the repo root
 (edited via the dashboard's Settings page, which calls `POST /api/settings` on the
-backend, or by hand). Precedence is CLI flag > `config.json` > environment variable /
-built-in default. This file holds no secrets — only the query string and a number.
+backend, or by hand). A value passed directly in a `POST /api/run` request body
+overrides `config.json` for that one run; otherwise `config.json` > built-in default.
+This file holds no secrets — only the query string and a number.
 
 ## Backend (FastAPI)
 
-`src/backend/main.py` is the only process that reads `.env`, `credentials.json`,
-`token.json`, and `config.json`, and the only one that calls Gmail or OpenAI. Run it
-with `uvicorn src.backend.main:app --reload --port 8000`. Routes:
-- `GET /api/tasks`, `GET /api/messages` — read `output/tasks_and_courses.json` /
-  `output/all_messages.json`.
-- `POST /api/run` — runs the fetch-and-extract pipeline (`src/pipeline.py`) and
-  rewrites those files.
-- `GET /api/settings`, `POST /api/settings` — read/write `config.json`, and report
-  (as booleans, never actual values) whether `OPENAI_API_KEY` and Gmail credentials
-  are present.
-- `GET /api/gmail-auth`, `POST /api/gmail-auth` — check connection status / run the
-  OAuth flow in a background thread.
+`backend/` is the only code that reads `.env`, `credentials.json`, `token.json`,
+and `config.json`, and the only code that calls Gmail or OpenAI. Run it with
+`uvicorn backend.main:app --reload --port 8000`. It's a small router-per-resource
+FastAPI app:
+- `backend/routers/tasks.py` — `GET /api/tasks`, `GET /api/messages`, reading
+  `output/tasks_and_courses.json` / `output/all_messages.json`.
+- `backend/routers/run.py` — `POST /api/run`, runs the fetch-and-extract pipeline
+  (`backend/services/pipeline.py`) and rewrites those files.
+- `backend/routers/settings.py` — `GET /api/settings`, `POST /api/settings`,
+  reading/writing `config.json` and reporting (as booleans, never actual values)
+  whether `OPENAI_API_KEY` and Gmail credentials are present.
+- `backend/routers/gmail.py` — `GET /api/gmail-auth`, `POST /api/gmail-auth`,
+  checking connection status / running the OAuth flow in a background thread.
 
 CORS is restricted to `http://localhost:3000`. To allow another frontend origin,
-adjust `allow_origins` in `src/backend/main.py`.
+adjust `allow_origins` in `backend/main.py`.
+
+With just the backend running (no dashboard needed), open
+[http://localhost:8000/docs](http://localhost:8000/docs) for an interactive Swagger
+UI that lets you call any of these directly from the browser — routes are grouped by
+tag (tasks/run/settings/gmail), matching the router files above.
 
 ## Dashboard (Next.js, pure frontend)
 

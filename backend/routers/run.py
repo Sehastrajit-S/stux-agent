@@ -2,9 +2,8 @@ import os
 
 from fastapi import APIRouter, HTTPException
 
-from pipeline import run as run_pipeline
-
 from ..schemas import RunRequest
+from ..services.pipeline import run as run_pipeline
 
 router = APIRouter(prefix="/api", tags=["run"])
 

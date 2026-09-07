@@ -158,7 +158,7 @@ export default function Home() {
               <div className="empty">
                 No baseline output found yet.
                 <br />
-                Run <code>python run_baseline.py</code> from the repo root (with Gmail
+                Click <strong>Run now</strong> on the Settings page (with Gmail
                 credentials configured), then this page will pick it up automatically
                 within a few seconds.
               </div>
@@ -167,7 +167,7 @@ export default function Home() {
               <div className="empty">
                 Could not reach the backend ({error}).
                 <br />
-                Make sure it's running: <code>uvicorn src.backend.main:app --reload</code>{" "}
+                Make sure it's running: <code>uvicorn backend.main:app --reload</code>{" "}
                 from the repo root.
               </div>
             )}
@@ -225,14 +225,14 @@ export default function Home() {
         {allLoading && <div className="empty">Loading…</div>}
         {!allLoading && allError === "not_found" && (
           <div className="empty">
-            No run has recorded raw messages yet. This appears after your next{" "}
-            <code>python run_baseline.py</code> run.
+            No run has recorded raw messages yet. Click <strong>Run now</strong> on the
+            Settings page to fetch and extract for the first time.
           </div>
         )}
         {!allLoading && allError && allError !== "not_found" && (
           <div className="empty">
             Could not reach the backend ({allError}). Make sure it's running:{" "}
-            <code>uvicorn src.backend.main:app --reload</code> from the repo root.
+            <code>uvicorn backend.main:app --reload</code> from the repo root.
           </div>
         )}
         {!allLoading && !allError && dayMessages.length === 0 && (

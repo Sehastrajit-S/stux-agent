@@ -100,14 +100,14 @@ bundled sample/offline data — every run reads the requester's actual Gmail inb
 5. Write the sorted list to `output/tasks_and_courses.json`, and every fetched
    message (relevant or not) to `output/all_messages.json`, printing a
    human-readable summary line per message.
-6. Steps 1-5 live in `src/pipeline.py` and are shared by two callers: the
-   `run_baseline.py` CLI, and a FastAPI backend (`src/backend/main.py`) that exposes them
-   as a small JSON API (`GET /api/tasks`, `GET /api/messages`, `POST /api/run`, plus
-   settings and Gmail-connection endpoints). The Next.js frontend (`dashboard/`) has
-   no filesystem or Gmail/OpenAI access of its own — it only calls that API — and
-   renders filterable, due-date-colored cards, a month/week/day calendar built from
-   the due dates, and a "Day overview" panel showing every message tied to whichever
-   day is selected, polling every 8 seconds so it stays in sync with the latest run.
+6. Steps 1-5 live in `backend/services/pipeline.py`, called by a FastAPI backend
+   (`backend/main.py`, a small router-per-resource app) that exposes them as a JSON
+   API (`GET /api/tasks`, `GET /api/messages`, `POST /api/run`, plus settings and
+   Gmail-connection endpoints). The Next.js frontend (`dashboard/`) has no filesystem
+   or Gmail/OpenAI access of its own — it only calls that API — and renders
+   filterable, due-date-colored cards, a month/week/day calendar built from the due
+   dates, and a "Day overview" panel showing every message tied to whichever day is
+   selected, polling every 8 seconds so it stays in sync with the latest run.
 
 **Why this is a reasonable starting point.** It is the simplest system that touches
 every piece the target problem needs — a real ingestion client, and one LLM call
@@ -117,21 +117,23 @@ genuine "single-call model baseline" per message, which makes its failure modes 
 to attribute (bad extraction vs. bad ingestion) when building the next phase.
 
 **Files.**
-- [`run_baseline.py`](../run_baseline.py) — CLI entry point, thin wrapper over the
-  shared pipeline.
-- [`src/pipeline.py`](../src/pipeline.py) — the actual fetch → extract → write logic,
-  called by both the CLI and the API (one implementation, not two copies to keep in
-  sync).
-- [`src/backend/main.py`](../src/backend/main.py) — FastAPI app exposing that pipeline, plus
-  settings and Gmail-connection state, as a JSON API for the frontend.
-- [`src/extractor.py`](../src/extractor.py) — the single OpenAI call.
-- [`src/gmail_client.py`](../src/gmail_client.py) — live Gmail ingestion, search-filtered
-  to `from:notifications@instructure.com` by default.
-- [`src/gmail_login.py`](../src/gmail_login.py) — standalone OAuth consent flow; the
-  backend runs it in a background thread for the dashboard's "Connect Gmail" button.
-- [`src/config.py`](../src/config.py) — reads `config.json` (gitignored local state,
-  like `.env`; both the CLI and the backend fall back to safe hardcoded defaults if
-  it doesn't exist) for non-secret settings shared between them.
+- [`backend/main.py`](../backend/main.py) — FastAPI app assembly (CORS + routers);
+  nothing else lives here.
+- [`backend/routers/`](../backend/routers) — one file per resource: `tasks.py`
+  (`GET /api/tasks`, `/api/messages`), `run.py` (`POST /api/run`), `settings.py`
+  (`GET`/`POST /api/settings`), `gmail.py` (`GET`/`POST /api/gmail-auth`).
+- [`backend/services/pipeline.py`](../backend/services/pipeline.py) — the actual
+  fetch → extract → write logic, called by `POST /api/run`; kept separate from the
+  FastAPI layer so it's plain Python, easy to read or test on its own.
+- [`backend/services/extractor.py`](../backend/services/extractor.py) — the single
+  OpenAI call.
+- [`backend/services/gmail_client.py`](../backend/services/gmail_client.py) — live
+  Gmail ingestion, search-filtered to `from:notifications@instructure.com` by
+  default; its `_get_service()` also runs the OAuth consent flow (called from
+  `routers/gmail.py` in a background thread for the "Connect Gmail" button).
+- [`backend/core/config.py`](../backend/core/config.py) — reads `config.json`
+  (gitignored local state, like `.env`; the backend falls back to safe hardcoded
+  defaults if it doesn't exist) for non-secret settings.
 - [`dashboard/pages/index.js`](../dashboard/pages/index.js),
   [`dashboard/lib/api.js`](../dashboard/lib/api.js) — the dashboard and the HTTP
   client it uses to call the FastAPI backend (`dashboard/` has no API routes or
@@ -144,14 +146,16 @@ to attribute (bad extraction vs. bad ingestion) when building the next phase.
 ## Section 4. Test Case and Baseline Output
 
 **Sample input.** A live pull from the student's own Gmail inbox
-(`from:notifications@instructure.com`), via:
+(`from:notifications@instructure.com`), via the backend's own API:
 ```bash
-python run_baseline.py --limit 15
+uvicorn backend.main:app --reload --port 8000
+curl -X POST http://localhost:8000/api/run -H "Content-Type: application/json" -d '{"limit": 15}'
 ```
-This requires completing an interactive OAuth consent screen in a browser the first
-time it runs (see Section 5) — this cannot be scripted or faked, so the test case
-below reflects a real run against a real Canvas-enrolled Gmail account, not synthetic
-data.
+(or the same call made through http://localhost:8000/docs, or the dashboard
+Settings page's **Run now** button). This requires completing an interactive OAuth
+consent screen in a browser the first time it runs (see Section 5) — this cannot be
+scripted or faked, so the test case below reflects a real run against a real
+Canvas-enrolled Gmail account, not synthetic data.
 
 **Expected behavior.** Canvas notification emails that state an assignment deadline,
 a sign-up requirement, or an enrollment/meeting-time fact should be flagged
@@ -160,7 +164,7 @@ next step, and, where stated, `course_code` and `due_date`. Purely informational
 notifications (e.g. a posted grade with no further action) should be flagged
 `is_relevant: false`.
 
-**Actual baseline output.** Ran `python run_baseline.py --limit 15` against a real
+**Actual baseline output.** Ran `POST /api/run` with `{"limit": 15}` against a real
 Canvas-enrolled Gmail account: fetched 10 messages, all 10 flagged relevant (this
 account's recent Canvas activity happened to be entirely actionable — HW reminders,
 sign-ups, and grade notices with follow-up steps). Representative excerpts from
@@ -206,7 +210,7 @@ sign-ups, and grade notices with follow-up steps). Representative excerpts from
 }
 ```
 
-*[Paste a screenshot of the terminal run and the dashboard (`uvicorn src.backend.main:app
+*[Paste a screenshot of the terminal run and the dashboard (`uvicorn backend.main:app
 --reload` in one terminal, `npm run dev` in `dashboard/` in another, then
 http://localhost:3000 — cards, calendar, and Day overview) here before submitting to
 Canvas.]*
@@ -252,11 +256,13 @@ is no offline/sample mode. Full reference in [`examples/readme.md`](../examples/
 
 **Exact commands to run the baseline and view it:**
 ```bash
-python run_baseline.py --limit 15
+uvicorn backend.main:app --reload --port 8000
+curl -X POST http://localhost:8000/api/run -H "Content-Type: application/json" -d '{"limit": 15}'
 ```
-or, via the API/dashboard (two terminals):
+This alone reproduces the test case (writes `output/*.json`, no dashboard needed —
+verify via `curl http://localhost:8000/api/tasks` or http://localhost:8000/docs). To
+also view it in the dashboard, add a second terminal:
 ```bash
-uvicorn src.backend.main:app --reload --port 8000
 cd dashboard && npm run dev   # then open http://localhost:3000
 ```
 

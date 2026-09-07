@@ -139,7 +139,7 @@ export default function Settings() {
         {settingsError && (
           <div className="backend-error">
             Could not reach the backend ({settingsError}). Make sure it's running:{" "}
-            <code>uvicorn src.backend.main:app --reload</code> from the repo root.
+            <code>uvicorn backend.main:app --reload</code> from the repo root.
           </div>
         )}
 

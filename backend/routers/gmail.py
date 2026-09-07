@@ -3,7 +3,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 
-from gmail_client import CREDENTIALS_PATH, TOKEN_PATH, _get_service
+from ..services.gmail_client import CREDENTIALS_PATH, TOKEN_PATH, _get_service
 
 router = APIRouter(prefix="/api", tags=["gmail"])
 

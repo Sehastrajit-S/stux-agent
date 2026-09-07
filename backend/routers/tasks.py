@@ -1,7 +1,6 @@
 from fastapi import APIRouter
 
-from pipeline import ALL_MESSAGES_PATH, TASKS_PATH
-
+from ..services.pipeline import ALL_MESSAGES_PATH, TASKS_PATH
 from ..utils import iso, read_json
 
 router = APIRouter(prefix="/api", tags=["tasks"])

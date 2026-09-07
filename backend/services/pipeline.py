@@ -1,11 +1,12 @@
 import json
 from pathlib import Path
 
-from config import load_config
-from extractor import extract
-from gmail_client import fetch_recent_emails
+from ..core.config import load_config
+from .extractor import extract
+from .gmail_client import fetch_recent_emails
 
-ROOT = Path(__file__).parent.parent
+# backend/services/pipeline.py -> services -> backend -> repo root
+ROOT = Path(__file__).resolve().parent.parent.parent
 TASKS_PATH = ROOT / "output" / "tasks_and_courses.json"
 ALL_MESSAGES_PATH = ROOT / "output" / "all_messages.json"
 
@@ -14,8 +15,10 @@ def run(limit: int = None, gmail_query: str = None) -> dict:
     """Fetch recent Gmail messages, extract structured records from each, and
     write both the relevant subset and the full set to output/*.json.
 
-    Shared by run_baseline.py (CLI) and src/backend/main.py (FastAPI) so there is
-    one implementation of the actual pipeline, not two copies that can drift.
+    Called by backend/routers/run.py (POST /api/run). Kept as its own
+    module, separate from the FastAPI layer, so the actual pipeline logic
+    stays plain Python - easy to read, test, or call from anywhere else
+    without pulling in FastAPI.
     """
     config = load_config()
     limit = limit or config.get("limit") or 10
