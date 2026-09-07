@@ -39,6 +39,16 @@ function isoDate(date) {
   return `${y}-${m}-${d}`;
 }
 
+// Slack has no reliable permalink without extra workspace config, so only
+// Gmail items are clickable - this is the standard Gmail deep-link format
+// using the message id the API already gives us.
+function openLink(item) {
+  if (item.source === "gmail" && item.source_id) {
+    return `https://mail.google.com/mail/u/0/#all/${item.source_id}`;
+  }
+  return null;
+}
+
 export default function Home() {
   const [records, setRecords] = useState([]);
   const [error, setError] = useState(null);
@@ -82,13 +92,27 @@ export default function Home() {
 
   const overviewDate = selectedDate || isoDate(new Date());
 
+  // Day overview = messages that arrived that day, plus any relevant item due
+  // that day even if it arrived earlier (e.g. a sign-up emailed a week before
+  // its deadline) - merged and de-duped by source+source_id.
   const dayMessages = useMemo(() => {
-    return allMessages.filter((m) => {
-      if (!m.received_at) return false;
-      const d = new Date(m.received_at);
-      return !Number.isNaN(d.getTime()) && isoDate(d) === overviewDate;
-    });
-  }, [allMessages, overviewDate]);
+    const byKey = new Map();
+    for (const m of allMessages) {
+      if (m.received_at) {
+        const d = new Date(m.received_at);
+        if (!Number.isNaN(d.getTime()) && isoDate(d) === overviewDate) {
+          byKey.set(`${m.source}-${m.source_id}`, m);
+        }
+      }
+    }
+    for (const r of records) {
+      if (r.due_date === overviewDate) {
+        const key = `${r.source}-${r.source_id}`;
+        byKey.set(key, { ...byKey.get(key), ...r });
+      }
+    }
+    return Array.from(byKey.values());
+  }, [allMessages, records, overviewDate]);
 
   const filtered = useMemo(() => {
     let list = records;
@@ -159,8 +183,14 @@ export default function Home() {
             )}
             {filtered.map((r, i) => {
               const status = dueStatus(r.due_date);
+              const href = openLink(r);
+              const CardTag = href ? "a" : "div";
               return (
-                <div className="card" key={`${r.source}-${r.source_id}-${i}`}>
+                <CardTag
+                  className={`card${href ? " clickable" : ""}`}
+                  key={`${r.source}-${r.source_id}-${i}`}
+                  {...(href ? { href, target: "_blank", rel: "noopener noreferrer" } : {})}
+                >
                   <h3>{r.title || "(untitled)"}</h3>
                   <div className="badges">
                     {typeBadges(r.type).map((t) => (
@@ -175,8 +205,9 @@ export default function Home() {
                   <div className="source">
                     <SourceIcon source={r.source} />
                     {r.source}
+                    {href && <span className="open-hint">Open mail ↗</span>}
                   </div>
-                </div>
+                </CardTag>
               );
             })}
           </main>
@@ -207,38 +238,47 @@ export default function Home() {
             on the calendar, or check the Gmail query on the Settings page.
           </div>
         )}
-        {dayMessages.map((m, i) => (
-          <div className="activity-row" key={`${m.source}-${m.source_id}-${i}`}>
-            <span
-              className={`dot ${m.is_relevant ? "ok" : "off"}`}
-              title={m.is_relevant ? "relevant" : "not relevant"}
-            />
-            <div className="activity-body">
-              <div className="activity-top">
-                <span className="activity-subject">{m.subject || "(no subject)"}</span>
-                <span className="activity-time">
-                  {m.received_at ? new Date(m.received_at).toLocaleString() : ""}
-                </span>
-              </div>
-              <div className="activity-meta">
-                <SourceIcon source={m.source} />
-                {m.source} · {m.sender || "unknown sender"}
-              </div>
-              {m.is_relevant && (
-                <div className="activity-tags">
-                  {typeBadges(m.type).map((t) => (
-                    <span className="badge type" key={t}>
-                      {t}
-                    </span>
-                  ))}
-                  {m.course_code && <span className="badge course">{m.course_code}</span>}
-                  {m.due_date && <span className="badge due-later">due {m.due_date}</span>}
+        {dayMessages.map((m, i) => {
+          const href = openLink(m);
+          const RowTag = href ? "a" : "div";
+          return (
+            <RowTag
+              className={`activity-row${href ? " clickable" : ""}`}
+              key={`${m.source}-${m.source_id}-${i}`}
+              {...(href ? { href, target: "_blank", rel: "noopener noreferrer" } : {})}
+            >
+              <span
+                className={`dot ${m.is_relevant ? "ok" : "off"}`}
+                title={m.is_relevant ? "relevant" : "not relevant"}
+              />
+              <div className="activity-body">
+                <div className="activity-top">
+                  <span className="activity-subject">{m.subject || "(no subject)"}</span>
+                  <span className="activity-time">
+                    {m.received_at ? new Date(m.received_at).toLocaleString() : ""}
+                  </span>
                 </div>
-              )}
-              {m.summary && <div className="activity-summary">{m.summary}</div>}
-            </div>
-          </div>
-        ))}
+                <div className="activity-meta">
+                  <SourceIcon source={m.source} />
+                  {m.source} · {m.sender || "unknown sender"}
+                  {href && <span className="open-hint">Open mail ↗</span>}
+                </div>
+                {m.is_relevant && (
+                  <div className="activity-tags">
+                    {typeBadges(m.type).map((t) => (
+                      <span className="badge type" key={t}>
+                        {t}
+                      </span>
+                    ))}
+                    {m.course_code && <span className="badge course">{m.course_code}</span>}
+                    {m.due_date && <span className="badge due-later">due {m.due_date}</span>}
+                  </div>
+                )}
+                {m.summary && <div className="activity-summary">{m.summary}</div>}
+              </div>
+            </RowTag>
+          );
+        })}
       </section>
 
       <style jsx>{`
@@ -320,6 +360,7 @@ export default function Home() {
           grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
         }
         .card {
+          display: block;
           background: var(--glass);
           backdrop-filter: blur(20px) saturate(180%);
           -webkit-backdrop-filter: blur(20px) saturate(180%);
@@ -331,6 +372,16 @@ export default function Home() {
         }
         .card:hover {
           transform: translateY(-2px);
+        }
+        .card.clickable {
+          cursor: pointer;
+        }
+        .open-hint {
+          margin-left: auto;
+          color: var(--accent-strong);
+          font-weight: 700;
+          text-transform: none;
+          letter-spacing: normal;
         }
         .card h3 {
           margin: 0;
@@ -429,6 +480,12 @@ export default function Home() {
           align-items: flex-start;
           padding: 12px 0;
           border-bottom: 1px solid var(--border);
+        }
+        .activity-row.clickable {
+          cursor: pointer;
+        }
+        .activity-row.clickable:hover .activity-subject {
+          color: var(--accent-strong);
         }
         .activity-row:last-child {
           border-bottom: none;
