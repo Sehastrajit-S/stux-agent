@@ -101,7 +101,7 @@ bundled sample/offline data — every run reads the requester's actual Gmail inb
    message (relevant or not) to `output/all_messages.json`, printing a
    human-readable summary line per message.
 6. Steps 1-5 live in `src/pipeline.py` and are shared by two callers: the
-   `run_baseline.py` CLI, and a FastAPI backend (`backend/main.py`) that exposes them
+   `run_baseline.py` CLI, and a FastAPI backend (`src/backend/main.py`) that exposes them
    as a small JSON API (`GET /api/tasks`, `GET /api/messages`, `POST /api/run`, plus
    settings and Gmail-connection endpoints). The Next.js frontend (`dashboard/`) has
    no filesystem or Gmail/OpenAI access of its own — it only calls that API — and
@@ -122,7 +122,7 @@ to attribute (bad extraction vs. bad ingestion) when building the next phase.
 - [`src/pipeline.py`](../src/pipeline.py) — the actual fetch → extract → write logic,
   called by both the CLI and the API (one implementation, not two copies to keep in
   sync).
-- [`backend/main.py`](../backend/main.py) — FastAPI app exposing that pipeline, plus
+- [`src/backend/main.py`](../src/backend/main.py) — FastAPI app exposing that pipeline, plus
   settings and Gmail-connection state, as a JSON API for the frontend.
 - [`src/extractor.py`](../src/extractor.py) — the single OpenAI call.
 - [`src/gmail_client.py`](../src/gmail_client.py) — live Gmail ingestion, search-filtered
@@ -206,7 +206,7 @@ sign-ups, and grade notices with follow-up steps). Representative excerpts from
 }
 ```
 
-*[Paste a screenshot of the terminal run and the dashboard (`uvicorn backend.main:app
+*[Paste a screenshot of the terminal run and the dashboard (`uvicorn src.backend.main:app
 --reload` in one terminal, `npm run dev` in `dashboard/` in another, then
 http://localhost:3000 — cards, calendar, and Day overview) here before submitting to
 Canvas.]*
@@ -256,7 +256,7 @@ python run_baseline.py --limit 15
 ```
 or, via the API/dashboard (two terminals):
 ```bash
-uvicorn backend.main:app --reload --port 8000
+uvicorn src.backend.main:app --reload --port 8000
 cd dashboard && npm run dev   # then open http://localhost:3000
 ```
 

@@ -14,7 +14,7 @@ def run(limit: int = None, gmail_query: str = None) -> dict:
     """Fetch recent Gmail messages, extract structured records from each, and
     write both the relevant subset and the full set to output/*.json.
 
-    Shared by run_baseline.py (CLI) and backend/main.py (FastAPI) so there is
+    Shared by run_baseline.py (CLI) and src/backend/main.py (FastAPI) so there is
     one implementation of the actual pipeline, not two copies that can drift.
     """
     config = load_config()

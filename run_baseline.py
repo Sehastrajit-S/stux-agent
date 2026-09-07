@@ -44,7 +44,7 @@ def main():
     print(f"All fetched messages (relevant or not) written to {ALL_MESSAGES_PATH}")
     print(
         "Run the backend + dashboard to view them: "
-        "uvicorn backend.main:app --reload (in one terminal), "
+        "uvicorn src.backend.main:app --reload (in one terminal), "
         "npm run dev in dashboard/ (in another), then open http://localhost:3000"
     )
 

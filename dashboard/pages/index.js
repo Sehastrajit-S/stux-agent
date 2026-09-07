@@ -167,7 +167,7 @@ export default function Home() {
               <div className="empty">
                 Could not reach the backend ({error}).
                 <br />
-                Make sure it's running: <code>uvicorn backend.main:app --reload</code>{" "}
+                Make sure it's running: <code>uvicorn src.backend.main:app --reload</code>{" "}
                 from the repo root.
               </div>
             )}
@@ -232,7 +232,7 @@ export default function Home() {
         {!allLoading && allError && allError !== "not_found" && (
           <div className="empty">
             Could not reach the backend ({allError}). Make sure it's running:{" "}
-            <code>uvicorn backend.main:app --reload</code> from the repo root.
+            <code>uvicorn src.backend.main:app --reload</code> from the repo root.
           </div>
         )}
         {!allLoading && !allError && dayMessages.length === 0 && (

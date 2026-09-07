@@ -11,12 +11,12 @@ the backend over HTTP.
 ```
 run_baseline.py (CLI)  ──┐
                           ├──> src/pipeline.py ──> src/gmail_client.py, src/extractor.py
-backend/main.py (API)  ──┘         (fetch + extract + write output/*.json)
+src/backend/main.py (API)  ──┘         (fetch + extract + write output/*.json)
 
-dashboard/ (Next.js, pure frontend)  ──HTTP──>  backend/main.py (FastAPI, localhost:8000)
+dashboard/ (Next.js, pure frontend)  ──HTTP──>  src/backend/main.py (FastAPI, localhost:8000)
 ```
 
-`run_baseline.py` and `backend/main.py` both call the same `src/pipeline.py` function
+`run_baseline.py` and `src/backend/main.py` both call the same `src/pipeline.py` function
 — one implementation of the actual fetch-and-extract logic, not two copies that can
 drift. The dashboard holds no business logic: no file reads, no Gmail/OpenAI calls, no
 subprocess spawning — every dynamic page just calls the backend's JSON API.
@@ -32,7 +32,7 @@ subprocess spawning — every dynamic page just calls the backend's JSON API.
    priority / a practical overview of what to actually do.
 4. Filters to relevant items, sorts by due date, writes `output/tasks_and_courses.json`
    (plus `output/all_messages.json` with every fetched message, relevant or not).
-5. The FastAPI backend (`backend/main.py`) serves those results — and can trigger a
+5. The FastAPI backend (`src/backend/main.py`) serves those results — and can trigger a
    fresh run itself — over a small JSON API. The Next.js dashboard (`dashboard/`)
    calls that API and renders filterable cards, a calendar, and a "Day overview,"
    polling every 8 seconds.
@@ -43,7 +43,7 @@ time you run it.
 ## Files
 
 - `run_baseline.py` — CLI entry point (thin wrapper over `src/pipeline.py`).
-- `backend/main.py` — FastAPI app: serves `output/*.json`, triggers a pipeline run,
+- `src/backend/main.py` — FastAPI app: serves `output/*.json`, triggers a pipeline run,
   reads/writes `config.json`, and runs the Gmail OAuth flow — everything the dashboard
   needs, over HTTP.
 - `src/pipeline.py` — the actual fetch → extract → write logic, shared by the CLI and
@@ -106,7 +106,7 @@ Two terminals:
 
 ```bash
 # Terminal 1 — API
-uvicorn backend.main:app --reload --port 8000
+uvicorn src.backend.main:app --reload --port 8000
 
 # Terminal 2 — frontend
 cd dashboard

@@ -2,7 +2,7 @@
 
 This baseline is configured entirely through environment variables. Copy `.env.example`
 (repo root) to `.env` and fill in your values, or export them in your shell. The
-backend (`backend/main.py`) loads this same `.env` file, since it's the process that
+backend (`src/backend/main.py`) loads this same `.env` file, since it's the process that
 actually talks to Gmail and OpenAI — the dashboard never touches these values.
 
 **Required for every run:**
@@ -31,9 +31,9 @@ built-in default. This file holds no secrets — only the query string and a num
 
 ## Backend (FastAPI)
 
-`backend/main.py` is the only process that reads `.env`, `credentials.json`,
+`src/backend/main.py` is the only process that reads `.env`, `credentials.json`,
 `token.json`, and `config.json`, and the only one that calls Gmail or OpenAI. Run it
-with `uvicorn backend.main:app --reload --port 8000`. Routes:
+with `uvicorn src.backend.main:app --reload --port 8000`. Routes:
 - `GET /api/tasks`, `GET /api/messages` — read `output/tasks_and_courses.json` /
   `output/all_messages.json`.
 - `POST /api/run` — runs the fetch-and-extract pipeline (`src/pipeline.py`) and
@@ -45,7 +45,7 @@ with `uvicorn backend.main:app --reload --port 8000`. Routes:
   OAuth flow in a background thread.
 
 CORS is restricted to `http://localhost:3000`. To allow another frontend origin,
-adjust `allow_origins` in `backend/main.py`.
+adjust `allow_origins` in `src/backend/main.py`.
 
 ## Dashboard (Next.js, pure frontend)
 

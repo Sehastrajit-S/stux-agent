@@ -11,10 +11,11 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-ROOT = Path(__file__).parent.parent
+SRC_DIR = Path(__file__).resolve().parent.parent  # src/backend/main.py -> backend -> src
+ROOT = SRC_DIR.parent  # src -> repo root
 load_dotenv(ROOT / ".env")
 
-sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(SRC_DIR))
 
 from config import CONFIG_PATH, load_config  # noqa: E402
 from gmail_client import CREDENTIALS_PATH, DEFAULT_QUERY, TOKEN_PATH, _get_service  # noqa: E402
