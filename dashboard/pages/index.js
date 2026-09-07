@@ -27,7 +27,17 @@ function SourceIcon({ source, ...props }) {
   return source === "slack" ? <SlackIcon {...props} /> : <MailIcon {...props} />;
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+function typeBadges(type) {
+  if (type === "both") return ["task", "course"];
+  return [type || "unknown"];
+}
+
+function isoDate(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
 
 export default function Home() {
   const [records, setRecords] = useState([]);
@@ -70,14 +80,15 @@ export default function Home() {
     return () => clearInterval(id);
   }, [load]);
 
-  const recent = useMemo(() => {
-    const cutoff = Date.now() - DAY_MS;
+  const overviewDate = selectedDate || isoDate(new Date());
+
+  const dayMessages = useMemo(() => {
     return allMessages.filter((m) => {
       if (!m.received_at) return false;
-      const t = new Date(m.received_at).getTime();
-      return !Number.isNaN(t) && t >= cutoff;
+      const d = new Date(m.received_at);
+      return !Number.isNaN(d.getTime()) && isoDate(d) === overviewDate;
     });
-  }, [allMessages]);
+  }, [allMessages, overviewDate]);
 
   const filtered = useMemo(() => {
     let list = records;
@@ -135,7 +146,11 @@ export default function Home() {
                 <div className="card" key={`${r.source}-${r.source_id}-${i}`}>
                   <h3>{r.title || "(untitled)"}</h3>
                   <div className="badges">
-                    <span className="badge type">{r.type || "unknown"}</span>
+                    {typeBadges(r.type).map((t) => (
+                      <span className="badge type" key={t}>
+                        {t}
+                      </span>
+                    ))}
                     {r.course_code && <span className="badge course">{r.course_code}</span>}
                     <span className={`badge ${status.cls}`}>{status.label}</span>
                     {r.priority && <span className="badge type">{r.priority} priority</span>}
@@ -153,7 +168,16 @@ export default function Home() {
       </div>
 
       <section className="activity">
-        <h2>Recent Activity (last 24h)</h2>
+        <div className="activity-head">
+          <h2>Day overview</h2>
+          <span className="activity-date">
+            {new Date(`${overviewDate}T00:00:00`).toLocaleDateString(undefined, {
+              weekday: "long",
+              month: "long",
+              day: "numeric",
+            })}
+          </span>
+        </div>
         {allLoading && <div className="empty">Loading…</div>}
         {!allLoading && allError === "not_found" && (
           <div className="empty">
@@ -161,14 +185,13 @@ export default function Home() {
             <code>python run_baseline.py</code> run.
           </div>
         )}
-        {!allLoading && !allError && recent.length === 0 && (
+        {!allLoading && !allError && dayMessages.length === 0 && (
           <div className="empty">
-            No messages from the last 24 hours in the most recent run. If you expected
-            one, check the Gmail query on the Settings page and confirm the message is
-            in the account/label that query searches.
+            No messages fetched on this day in the most recent run. Pick a different day
+            on the calendar, or check the Gmail query on the Settings page.
           </div>
         )}
-        {recent.map((m, i) => (
+        {dayMessages.map((m, i) => (
           <div className="activity-row" key={`${m.source}-${m.source_id}-${i}`}>
             <span
               className={`dot ${m.is_relevant ? "ok" : "off"}`}
@@ -344,10 +367,20 @@ export default function Home() {
           box-shadow: var(--shadow);
           border-radius: 20px;
         }
+        .activity-head {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          margin-bottom: 14px;
+        }
         .activity h2 {
           font-size: 1.05rem;
-          margin: 0 0 14px;
+          margin: 0;
           font-weight: 700;
+        }
+        .activity-date {
+          color: var(--muted);
+          font-size: 0.82rem;
         }
         .activity-row {
           display: flex;

@@ -68,14 +68,32 @@ export default function Calendar({ records, selectedDate, onSelectDate }) {
   const label =
     mode === "week"
       ? `${days[0].toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${days[6].toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
+      : mode === "day"
+      ? anchor.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })
       : anchor.toLocaleDateString(undefined, { month: "long", year: "numeric" });
 
   function shift(delta) {
-    setAnchor((prev) =>
-      mode === "week"
-        ? addDays(prev, delta * 7)
-        : new Date(prev.getFullYear(), prev.getMonth() + delta, 1)
-    );
+    setAnchor((prev) => {
+      const next =
+        mode === "week"
+          ? addDays(prev, delta * 7)
+          : mode === "day"
+          ? addDays(prev, delta)
+          : new Date(prev.getFullYear(), prev.getMonth() + delta, 1);
+      if (mode === "day") onSelectDate(isoDate(next));
+      return next;
+    });
+  }
+
+  function selectMode(next) {
+    setMode(next);
+    if (next === "day") onSelectDate(isoDate(anchor));
+  }
+
+  function goToday() {
+    const now = new Date();
+    setAnchor(now);
+    if (mode === "day") onSelectDate(isoDate(now));
   }
 
   const today = new Date();
@@ -88,7 +106,7 @@ export default function Calendar({ records, selectedDate, onSelectDate }) {
           <button type="button" onClick={() => shift(-1)} aria-label="Previous">
             <ChevronLeft />
           </button>
-          <button type="button" className="today-btn" onClick={() => setAnchor(new Date())}>
+          <button type="button" className="today-btn" onClick={goToday}>
             Today
           </button>
           <button type="button" onClick={() => shift(1)} aria-label="Next">
@@ -101,16 +119,23 @@ export default function Calendar({ records, selectedDate, onSelectDate }) {
         <button
           type="button"
           className={mode === "month" ? "active" : ""}
-          onClick={() => setMode("month")}
+          onClick={() => selectMode("month")}
         >
           Month
         </button>
         <button
           type="button"
           className={mode === "week" ? "active" : ""}
-          onClick={() => setMode("week")}
+          onClick={() => selectMode("week")}
         >
           Week
+        </button>
+        <button
+          type="button"
+          className={mode === "day" ? "active" : ""}
+          onClick={() => selectMode("day")}
+        >
+          Day
         </button>
       </div>
 
@@ -202,7 +227,43 @@ export default function Calendar({ records, selectedDate, onSelectDate }) {
         </div>
       )}
 
-      {selectedDate && (
+      {mode === "day" && (
+        <div className="week-agenda">
+          <div className="week-row single week-head-row">
+            <div className="time-gutter" />
+            <div className={`week-day-head no-btn${sameDay(anchor, today) ? " today" : ""}`}>
+              <span className="wd-name">{anchor.toLocaleDateString(undefined, { weekday: "short" })}</span>
+              <span className="wd-num">{anchor.getDate()}</span>
+            </div>
+          </div>
+
+          <div className="week-row single week-allday-row">
+            <div className="time-gutter small">All day</div>
+            <div className="week-allday-cell">
+              {(itemsByDate[isoDate(anchor)] || []).length === 0 ? (
+                <span className="day-empty-inline">Nothing due today</span>
+              ) : (
+                (itemsByDate[isoDate(anchor)] || []).map((it, i) => (
+                  <span key={i} className="week-item" title={it.title}>
+                    {it.title}
+                  </span>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="week-hours">
+            {HOURS.map((h) => (
+              <div className="week-row single hour-row" key={h}>
+                <div className="time-gutter hour-label">{formatHour(h)}</div>
+                <div className="hour-cell" />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {selectedDate && mode !== "day" && (
         <button type="button" className="clear-filter" onClick={() => onSelectDate(null)}>
           Clear date filter ({selectedDate})
         </button>
@@ -339,7 +400,10 @@ export default function Calendar({ records, selectedDate, onSelectDate }) {
         }
         .week-row {
           display: grid;
-          grid-template-columns: 56px repeat(7, 1fr);
+          grid-template-columns: 56px repeat(7, minmax(0, 1fr));
+        }
+        .week-row.single {
+          grid-template-columns: 56px minmax(0, 1fr);
         }
         .time-gutter {
           font-size: 0.68rem;
@@ -366,6 +430,8 @@ export default function Calendar({ records, selectedDate, onSelectDate }) {
           border: none;
           border-left: 1px solid var(--border);
           cursor: pointer;
+          min-width: 0;
+          overflow: hidden;
         }
         .week-day-head .wd-name {
           font-size: 0.65rem;
@@ -383,6 +449,14 @@ export default function Calendar({ records, selectedDate, onSelectDate }) {
         .week-day-head.selected {
           background: var(--accent-soft);
         }
+        .week-day-head.no-btn {
+          cursor: default;
+        }
+        .day-empty-inline {
+          color: var(--muted);
+          font-size: 0.72rem;
+          padding: 4px 2px;
+        }
         .week-allday-row {
           border-bottom: 1px solid var(--border);
         }
@@ -393,8 +467,14 @@ export default function Calendar({ records, selectedDate, onSelectDate }) {
           flex-direction: column;
           gap: 3px;
           min-height: 30px;
+          min-width: 0;
+          overflow: hidden;
         }
         .week-item {
+          display: block;
+          width: 100%;
+          box-sizing: border-box;
+          min-width: 0;
           font-size: 0.66rem;
           background: var(--accent-soft);
           color: var(--accent-strong);
@@ -403,6 +483,7 @@ export default function Calendar({ records, selectedDate, onSelectDate }) {
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
+          cursor: default;
         }
         .week-hours {
           max-height: 480px;
