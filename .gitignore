@@ -4,6 +4,7 @@ __pycache__/
 token.json
 credentials.json
 client_secret_*.json
+config.json
 output/*.json
 output/*.html
 !output/.gitkeep

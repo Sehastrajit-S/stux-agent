@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
+import Layout from "../components/Layout";
 
 const FILTERS = [
   ["all", "All"],
@@ -71,7 +72,7 @@ export default function Home() {
   }, [records]);
 
   return (
-    <div>
+    <Layout>
       <header className="header">
         <h1>Tasks &amp; Courses Dashboard</h1>
         <div className="sub">
@@ -268,6 +269,6 @@ export default function Home() {
           border-radius: 4px;
         }
       `}</style>
-    </div>
+    </Layout>
   );
 }

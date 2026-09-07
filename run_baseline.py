@@ -12,6 +12,7 @@ ROOT = Path(__file__).parent
 sys.path.insert(0, str(ROOT / "src"))
 
 from extractor import extract  # noqa: E402
+from config import load_config  # noqa: E402
 
 
 def load_gmail(max_results: int, query: str) -> list:
@@ -36,14 +37,17 @@ def main():
         default="all",
         help="Which live source(s) to read from.",
     )
-    parser.add_argument("--limit", type=int, default=10, help="Max messages per live source.")
     parser.add_argument(
-        "--slack-channel", default=None, help="Slack channel ID (overrides SLACK_CHANNEL_ID)."
+        "--limit", type=int, default=None, help="Max messages per live source (overrides config.json)."
+    )
+    parser.add_argument(
+        "--slack-channel", default=None, help="Slack channel ID (overrides config.json / SLACK_CHANNEL_ID)."
     )
     parser.add_argument(
         "--gmail-query",
         default=None,
-        help="Gmail search query (overrides GMAIL_QUERY; default 'from:notifications@instructure.com').",
+        help="Gmail search query (overrides config.json / GMAIL_QUERY; "
+        "default 'from:notifications@instructure.com').",
     )
     parser.add_argument(
         "--output", default=str(ROOT / "output" / "tasks_and_courses.json")
@@ -53,11 +57,17 @@ def main():
     if "OPENAI_API_KEY" not in os.environ:
         sys.exit("ERROR: set the OPENAI_API_KEY environment variable before running.")
 
+    # Precedence: CLI flag > config.json (written by the dashboard's Settings page) > env/defaults.
+    config = load_config()
+    limit = args.limit or config.get("limit") or 10
+    gmail_query = args.gmail_query or config.get("gmailQuery")
+    slack_channel = args.slack_channel or config.get("slackChannelId")
+
     messages = []
     if args.source in ("gmail", "all"):
-        messages += load_gmail(args.limit, args.gmail_query)
+        messages += load_gmail(limit, gmail_query)
     if args.source in ("slack", "all"):
-        messages += load_slack(args.slack_channel, args.limit)
+        messages += load_slack(slack_channel, limit)
 
     print(f"Loaded {len(messages)} message(s) from source='{args.source}'.\n")
 

@@ -25,8 +25,21 @@ Slack data — every run needs real, current credentials for whichever source(s)
 pass via `--source`. The Gmail OAuth flow opens a browser window on first run; this
 step is interactive and must be completed by a person (it cannot be scripted).
 
+## Non-secret settings (`config.json`)
+
+`GMAIL_QUERY`, the Slack channel, and the per-source message limit can also be set in
+`config.json` at the repo root (edited via the dashboard's Settings page, or by hand).
+Precedence is CLI flag > `config.json` > environment variable / built-in default. This
+file holds no secrets — only the query string, channel ID, and a number.
+
 ## Dashboard (Next.js)
 
-`dashboard/` is a small Next.js app that reads `output/tasks_and_courses.json`
-(written by `run_baseline.py`) and renders it. It has no configuration of its own; to
-point it at a different output file, set `OUTPUT_JSON_PATH` before `npm run dev`.
+`dashboard/` is a small Next.js app with two pages:
+- `/` reads `output/tasks_and_courses.json` (written by `run_baseline.py`) and renders
+  it as filterable cards, polling every 8 seconds.
+- `/settings` reads and writes `config.json` through `pages/api/settings.js`, and shows
+  (as green/red status dots, never the actual values) whether `OPENAI_API_KEY`,
+  `GMAIL_CREDENTIALS_PATH`/`credentials.json`, and `SLACK_BOT_TOKEN` are configured.
+
+To point the dashboard at a different output file, set `OUTPUT_JSON_PATH` before
+`npm run dev`.

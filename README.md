@@ -16,7 +16,9 @@ viewable as JSON or in a Next.js dashboard.
    priority.
 4. Filters to relevant items, sorts by due date, writes `output/tasks_and_courses.json`,
    and prints a human-readable summary to stdout.
-5. The `dashboard/` Next.js app reads that JSON file and renders it live.
+5. The `dashboard/` Next.js app reads that JSON file and renders it live, with a
+   Settings page (top-right nav) to edit the Gmail query, Slack channel, and message
+   limit that `run_baseline.py` uses next.
 
 There is no bundled sample/offline data — every run reflects your actual inbox/Slack
 at the time you run it.
@@ -28,8 +30,16 @@ at the time you run it.
 - `src/gmail_client.py` — live Gmail ingestion via the Gmail API (OAuth2), filtered by
   Gmail search query (defaults to Canvas/Instructure notification emails).
 - `src/slack_client.py` — live Slack ingestion via `conversations.history`.
+- `src/config.py` — reads `config.json` (Gmail query, Slack channel, limit) so
+  `run_baseline.py` picks up whatever was last saved from the dashboard's Settings page.
 - `dashboard/` — Next.js app that reads `output/tasks_and_courses.json` and displays it
-  as filterable, due-date-colored cards; auto-refreshes every 8s.
+  as filterable, due-date-colored cards; auto-refreshes every 8s. Includes a Settings
+  page (`dashboard/pages/settings.js`) that edits `config.json` and shows (without
+  exposing) whether required secrets are present in `.env`/`credentials.json`.
+- `config.json` (gitignored, like `.env`) — non-secret settings shared between the
+  dashboard and the Python CLI (Gmail query, Slack channel ID, message limit),
+  written by the Settings page. No API keys/tokens are ever stored here; both apps
+  fall back to safe hardcoded defaults if it doesn't exist yet.
 - `examples/readme.md` — configuration / environment variable reference (the
   "Configuration location" for this project).
 - `proposal/CSE598_Capstone_Proposal.md` — the capstone proposal document.
@@ -82,7 +92,9 @@ npm run dev
 Open [http://localhost:3000](http://localhost:3000). It reads
 `../output/tasks_and_courses.json` and polls it every 8 seconds, so re-running
 `run_baseline.py` updates the page without a restart. If no output file exists yet it
-shows the exact command to run, not placeholder data.
+shows the exact command to run, not placeholder data. Use the **⚙ Settings** link
+(top right) to change the Gmail query, Slack channel, or per-source message limit —
+saved to `config.json` and picked up by `run_baseline.py`'s next run.
 
 ## Known setup limitations
 

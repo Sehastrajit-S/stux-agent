@@ -111,9 +111,16 @@ attribute (bad extraction vs. bad ingestion) when building the next phase.
 - [`src/gmail_client.py`](../src/gmail_client.py) — live Gmail ingestion, search-filtered
   to `from:notifications@instructure.com` by default.
 - [`src/slack_client.py`](../src/slack_client.py) — live Slack ingestion.
+- [`src/config.py`](../src/config.py) — reads `config.json` (gitignored local state,
+  like `.env`; both the CLI and the dashboard fall back to safe hardcoded defaults if
+  it doesn't exist) for non-secret settings shared between the CLI and the dashboard.
 - [`dashboard/pages/index.js`](../dashboard/pages/index.js),
   [`dashboard/pages/api/tasks.js`](../dashboard/pages/api/tasks.js) — the Next.js
   dashboard and the API route it reads data from.
+- [`dashboard/pages/settings.js`](../dashboard/pages/settings.js),
+  [`dashboard/pages/api/settings.js`](../dashboard/pages/api/settings.js) — Settings
+  page (linked from the top-right nav) that edits `config.json` and reports whether
+  required secrets are present, without ever displaying their values.
 
 ## Section 4. Test Case and Baseline Output
 
