@@ -5,7 +5,6 @@ CONFIG_PATH = Path(__file__).parent.parent / "config.json"
 
 DEFAULTS = {
     "gmailQuery": None,
-    "slackChannelId": None,
     "limit": 10,
 }
 

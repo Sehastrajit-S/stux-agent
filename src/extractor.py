@@ -6,7 +6,7 @@ from openai import OpenAI
 MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
 
 SYSTEM_PROMPT = """You are a task-and-course extraction assistant. You will be given the \
-text of a single email or Slack message. Decide whether it contains an actionable task \
+text of a single email. Decide whether it contains an actionable task \
 (an assignment, deadline, or to-do) or a course-related announcement (course name/code, \
 meeting time, registration, office hours), or neither.
 
@@ -40,9 +40,8 @@ def extract(message: dict) -> dict:
     """Run a single OpenAI call to classify + extract structured fields from one message."""
     client = OpenAI()
     user_content = (
-        f"Source: {message['source']}\n"
         f"From: {message.get('sender', 'unknown')}\n"
-        f"Subject/Channel: {message.get('subject', message.get('channel', ''))}\n"
+        f"Subject: {message.get('subject', '')}\n"
         f"Text:\n{message['text']}"
     )
     response = client.chat.completions.create(
@@ -70,6 +69,6 @@ def extract(message: dict) -> dict:
     parsed["source"] = message["source"]
     parsed["source_id"] = message.get("id")
     parsed["sender"] = message.get("sender")
-    parsed["subject"] = message.get("subject", message.get("channel"))
+    parsed["subject"] = message.get("subject")
     parsed["received_at"] = message.get("received_at")
     return parsed

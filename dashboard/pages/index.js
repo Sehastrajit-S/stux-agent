@@ -1,14 +1,13 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import Layout from "../components/Layout";
 import Calendar from "../components/Calendar";
-import { MailIcon, SlackIcon } from "../components/Icons";
+import { MailIcon } from "../components/Icons";
+import { getTasks, getMessages } from "../lib/api";
 
 const FILTERS = [
   ["all", "All"],
   ["task", "Tasks"],
   ["course", "Courses"],
-  ["gmail", "Gmail"],
-  ["slack", "Slack"],
 ];
 
 function dueStatus(dateStr) {
@@ -23,10 +22,6 @@ function dueStatus(dateStr) {
   return { cls: "due-later", label: `due ${dateStr}` };
 }
 
-function SourceIcon({ source, ...props }) {
-  return source === "slack" ? <SlackIcon {...props} /> : <MailIcon {...props} />;
-}
-
 function typeBadges(type) {
   if (type === "both") return ["task", "course"];
   return [type || "unknown"];
@@ -39,11 +34,9 @@ function isoDate(date) {
   return `${y}-${m}-${d}`;
 }
 
-// Slack has no reliable permalink without extra workspace config, so only
-// Gmail items are clickable - this is the standard Gmail deep-link format
-// using the message id the API already gives us.
+// Standard Gmail deep-link format using the message id the API already gives us.
 function openLink(item) {
-  if (item.source === "gmail" && item.source_id) {
+  if (item.source_id) {
     return `https://mail.google.com/mail/u/0/#all/${item.source_id}`;
   }
   return null;
@@ -62,8 +55,7 @@ export default function Home() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/tasks");
-      const data = await res.json();
+      const data = await getTasks();
       setRecords(Array.isArray(data.records) ? data.records : []);
       setError(data.error || null);
     } catch (err) {
@@ -73,8 +65,7 @@ export default function Home() {
     }
 
     try {
-      const res = await fetch("/api/messages");
-      const data = await res.json();
+      const data = await getMessages();
       setAllMessages(Array.isArray(data.messages) ? data.messages : []);
       setAllError(data.error || null);
     } catch (err) {
@@ -118,8 +109,6 @@ export default function Home() {
     let list = records;
     if (filter === "task" || filter === "course") {
       list = list.filter((r) => r.type === filter || r.type === "both");
-    } else if (filter === "gmail" || filter === "slack") {
-      list = list.filter((r) => r.source === filter);
     }
     if (selectedDate) {
       list = list.filter((r) => r.due_date === selectedDate);
@@ -169,9 +158,17 @@ export default function Home() {
               <div className="empty">
                 No baseline output found yet.
                 <br />
-                Run <code>python run_baseline.py --source all</code> from the repo root
-                (with Gmail/Slack credentials configured), then this page will pick it up
-                automatically within a few seconds.
+                Run <code>python run_baseline.py</code> from the repo root (with Gmail
+                credentials configured), then this page will pick it up automatically
+                within a few seconds.
+              </div>
+            )}
+            {!loading && error && error !== "not_found" && (
+              <div className="empty">
+                Could not reach the backend ({error}).
+                <br />
+                Make sure it's running: <code>uvicorn backend.main:app --reload</code>{" "}
+                from the repo root.
               </div>
             )}
             {!loading && !error && filtered.length === 0 && (
@@ -203,8 +200,8 @@ export default function Home() {
                     {r.priority && <span className="badge type">{r.priority} priority</span>}
                   </div>
                   <div className="source">
-                    <SourceIcon source={r.source} />
-                    {r.source}
+                    <MailIcon />
+                    Gmail
                     {href && <span className="open-hint">Open mail ↗</span>}
                   </div>
                 </CardTag>
@@ -230,6 +227,12 @@ export default function Home() {
           <div className="empty">
             No run has recorded raw messages yet. This appears after your next{" "}
             <code>python run_baseline.py</code> run.
+          </div>
+        )}
+        {!allLoading && allError && allError !== "not_found" && (
+          <div className="empty">
+            Could not reach the backend ({allError}). Make sure it's running:{" "}
+            <code>uvicorn backend.main:app --reload</code> from the repo root.
           </div>
         )}
         {!allLoading && !allError && dayMessages.length === 0 && (
@@ -259,8 +262,8 @@ export default function Home() {
                   </span>
                 </div>
                 <div className="activity-meta">
-                  <SourceIcon source={m.source} />
-                  {m.source} · {m.sender || "unknown sender"}
+                  <MailIcon />
+                  {m.sender || "unknown sender"}
                   {href && <span className="open-hint">Open mail ↗</span>}
                 </div>
                 {m.is_relevant && (

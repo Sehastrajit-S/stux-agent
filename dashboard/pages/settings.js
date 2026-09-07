@@ -1,26 +1,27 @@
 import { useEffect, useRef, useState } from "react";
 import Layout from "../components/Layout";
 import { getStoredTheme, setTheme } from "../lib/theme";
+import { getSettings, saveSettings, getGmailAuthStatus, startGmailAuth, triggerRun } from "../lib/api";
 
-const ENV_ROWS = [
-  ["OPENAI_API_KEY", "OpenAI API key (used by the extraction step)"],
-  ["SLACK_BOT_TOKEN", "Slack bot token"],
-  ["SLACK_CHANNEL_ID", "Slack channel ID (env fallback)"],
-];
+const ENV_ROWS = [["OPENAI_API_KEY", "OpenAI API key (used by the extraction step)"]];
 
 export default function Settings() {
-  const [config, setConfig] = useState({ gmailQuery: "", slackChannelId: "", limit: 10 });
+  const [config, setConfig] = useState({ gmailQuery: "", limit: 10 });
   const [env, setEnv] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
+  const [settingsError, setSettingsError] = useState(null);
 
-  const [gmail, setGmail] = useState({ connected: false, hasCredentials: false, log: null });
+  const [gmail, setGmail] = useState({ connected: false, hasCredentials: false });
   const [gmailBusy, setGmailBusy] = useState(false);
   const [gmailMessage, setGmailMessage] = useState(null);
   const pollRef = useRef(null);
 
   const [dark, setDark] = useState(false);
+
+  const [running, setRunning] = useState(false);
+  const [runMessage, setRunMessage] = useState(null);
 
   useEffect(() => {
     setDark(getStoredTheme() === "dark");
@@ -33,22 +34,27 @@ export default function Settings() {
   }
 
   const loadSettings = () => {
-    fetch("/api/settings")
-      .then((r) => r.json())
+    getSettings()
       .then((data) => {
         setConfig(data.config);
         setEnv(data.env || {});
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((err) => {
+        setSettingsError(err.message);
+        setLoading(false);
+      });
   };
 
   const loadGmailStatus = () =>
-    fetch("/api/gmail-auth")
-      .then((r) => r.json())
+    getGmailAuthStatus()
       .then((data) => {
         setGmail(data);
         return data;
+      })
+      .catch((err) => {
+        setGmail({ connected: false, hasCredentials: false });
+        return { connected: false, error: err.message };
       });
 
   useEffect(() => {
@@ -61,28 +67,29 @@ export default function Settings() {
     e.preventDefault();
     setSaving(true);
     setSavedAt(null);
-    const res = await fetch("/api/settings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(config),
-    });
-    const data = await res.json();
-    setConfig(data.config);
-    setSaving(false);
-    setSavedAt(new Date());
+    try {
+      const data = await saveSettings(config);
+      setConfig(data.config);
+      setSavedAt(new Date());
+    } catch (err) {
+      setSettingsError(err.message);
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function connectGmail() {
     setGmailBusy(true);
     setGmailMessage(null);
-    const res = await fetch("/api/gmail-auth", { method: "POST" });
-    const data = await res.json();
-
-    if (data.status === "error") {
-      setGmailMessage(data.message);
+    let data;
+    try {
+      data = await startGmailAuth();
+    } catch (err) {
+      setGmailMessage(err.message);
       setGmailBusy(false);
       return;
     }
+
     if (data.status === "already_connected") {
       setGmailMessage("Already connected.");
       setGmailBusy(false);
@@ -100,10 +107,10 @@ export default function Settings() {
         clearInterval(pollRef.current);
         setGmailBusy(false);
         setGmailMessage("Connected.");
-      } else if (status.log && status.log.includes("GMAIL_AUTH_ERROR")) {
+      } else if (status.error) {
         clearInterval(pollRef.current);
         setGmailBusy(false);
-        setGmailMessage(status.log);
+        setGmailMessage(status.error);
       } else if (attempts > 90) {
         clearInterval(pollRef.current);
         setGmailBusy(false);
@@ -112,10 +119,29 @@ export default function Settings() {
     }, 2000);
   }
 
+  async function runNow() {
+    setRunning(true);
+    setRunMessage(null);
+    try {
+      const data = await triggerRun();
+      setRunMessage(`Fetched ${data.fetched}, ${data.relevant} relevant. Dashboard will update shortly.`);
+    } catch (err) {
+      setRunMessage(err.message);
+    } finally {
+      setRunning(false);
+    }
+  }
+
   return (
     <Layout>
       <div className="wrap">
         <h1>Settings</h1>
+        {settingsError && (
+          <div className="backend-error">
+            Could not reach the backend ({settingsError}). Make sure it's running:{" "}
+            <code>uvicorn backend.main:app --reload</code> from the repo root.
+          </div>
+        )}
 
         <section className="panel">
           <h2>Appearance</h2>
@@ -131,6 +157,17 @@ export default function Settings() {
               <span className="switch-knob" />
             </button>
           </div>
+        </section>
+
+        <section className="panel">
+          <h2>Run</h2>
+          <p className="hint">Fetch fresh messages from Gmail and re-extract right now.</p>
+          <div className="gmail-actions">
+            <button type="button" onClick={runNow} disabled={running}>
+              {running ? "Running…" : "Run now"}
+            </button>
+          </div>
+          {runMessage && <div className="gmail-message">{runMessage}</div>}
         </section>
 
         <section className="panel">
@@ -165,7 +202,7 @@ export default function Settings() {
         </section>
 
         <section className="panel">
-          <h2>Other connections</h2>
+          <h2>OpenAI</h2>
           <div className="status-grid">
             {ENV_ROWS.map(([key, label]) => (
               <div className="status-row" key={key}>
@@ -195,16 +232,7 @@ export default function Settings() {
                 />
               </label>
               <label>
-                Slack channel ID
-                <input
-                  type="text"
-                  placeholder="C0123456789"
-                  value={config.slackChannelId}
-                  onChange={(e) => setConfig({ ...config, slackChannelId: e.target.value })}
-                />
-              </label>
-              <label>
-                Messages per source (limit)
+                Messages to fetch (limit)
                 <input
                   type="number"
                   min="1"
@@ -240,9 +268,17 @@ export default function Settings() {
           font-size: 0.88rem;
           line-height: 1.6;
         }
-        .sub code {
-          background: var(--surface-muted);
-          color: var(--text);
+        .backend-error {
+          margin-top: 12px;
+          padding: 10px 14px;
+          background: var(--red-bg);
+          color: var(--red);
+          border-radius: 12px;
+          font-size: 0.85rem;
+          line-height: 1.5;
+        }
+        .backend-error code {
+          background: rgba(0, 0, 0, 0.08);
           padding: 1px 6px;
           border-radius: 6px;
         }
