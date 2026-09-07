@@ -45,7 +45,7 @@ export default function Layout({ children }) {
           display: flex;
           align-items: center;
           gap: 10px;
-          font-weight: 800;
+          font-weight: 900;
           font-size: 1.1rem;
           letter-spacing: 0.02em;
           color: var(--accent-strong);

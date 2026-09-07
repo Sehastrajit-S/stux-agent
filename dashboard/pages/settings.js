@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Layout from "../components/Layout";
+import { getStoredTheme, setTheme } from "../lib/theme";
 
 const ENV_ROWS = [
   ["OPENAI_API_KEY", "OpenAI API key (used by the extraction step)"],
@@ -18,6 +19,18 @@ export default function Settings() {
   const [gmailBusy, setGmailBusy] = useState(false);
   const [gmailMessage, setGmailMessage] = useState(null);
   const pollRef = useRef(null);
+
+  const [dark, setDark] = useState(false);
+
+  useEffect(() => {
+    setDark(getStoredTheme() === "dark");
+  }, []);
+
+  function toggleDark() {
+    const next = !dark;
+    setDark(next);
+    setTheme(next ? "dark" : "light");
+  }
 
   const loadSettings = () => {
     fetch("/api/settings")
@@ -110,6 +123,25 @@ export default function Settings() {
           stay in <code>.env</code> / <code>credentials.json</code> and are never
           edited on this page — only their presence is shown below.
         </p>
+
+        <section className="panel">
+          <h2>Appearance</h2>
+          <div className="theme-row">
+            <div>
+              <div className="theme-label">Dark mode</div>
+              <div className="hint">Only applies when toggled here — never follows OS/browser preference.</div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={dark}
+              className={`switch${dark ? " on" : ""}`}
+              onClick={toggleDark}
+            >
+              <span className="switch-knob" />
+            </button>
+          </div>
+        </section>
 
         <section className="panel">
           <h2>Gmail connection</h2>
@@ -266,6 +298,45 @@ export default function Settings() {
         .key {
           color: var(--muted);
           font-size: 0.75rem;
+        }
+        .theme-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+        }
+        .theme-label {
+          font-size: 0.9rem;
+          font-weight: 600;
+        }
+        .switch {
+          flex-shrink: 0;
+          width: 44px;
+          height: 26px;
+          border-radius: 999px;
+          border: none;
+          background: var(--surface-muted);
+          position: relative;
+          cursor: pointer;
+          transition: background 0.15s ease;
+          padding: 0;
+        }
+        .switch.on {
+          background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+        }
+        .switch-knob {
+          position: absolute;
+          top: 3px;
+          left: 3px;
+          width: 20px;
+          height: 20px;
+          border-radius: 50%;
+          background: #fff;
+          box-shadow: var(--shadow-sm);
+          transition: transform 0.15s ease;
+        }
+        .switch.on .switch-knob {
+          transform: translateX(18px);
         }
         .gmail-actions {
           display: flex;

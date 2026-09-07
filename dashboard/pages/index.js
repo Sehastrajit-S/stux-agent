@@ -225,6 +225,17 @@ export default function Home() {
                 <SourceIcon source={m.source} />
                 {m.source} · {m.sender || "unknown sender"}
               </div>
+              {m.is_relevant && (
+                <div className="activity-tags">
+                  {typeBadges(m.type).map((t) => (
+                    <span className="badge type" key={t}>
+                      {t}
+                    </span>
+                  ))}
+                  {m.course_code && <span className="badge course">{m.course_code}</span>}
+                  {m.due_date && <span className="badge due-later">due {m.due_date}</span>}
+                </div>
+              )}
               {m.summary && <div className="activity-summary">{m.summary}</div>}
             </div>
           </div>
@@ -473,6 +484,12 @@ export default function Home() {
           text-transform: uppercase;
           letter-spacing: 0.03em;
           margin-top: 2px;
+        }
+        .activity-tags {
+          display: flex;
+          gap: 6px;
+          flex-wrap: wrap;
+          margin-top: 6px;
         }
         .activity-summary {
           color: var(--muted);
