@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone
 
 from slack_sdk import WebClient
 
@@ -18,13 +19,18 @@ def fetch_recent_messages(channel: str = None, limit: int = 10) -> list:
     for m in response.get("messages", []):
         if not m.get("text"):
             continue
+        received_at = None
+        ts = m.get("ts")
+        if ts:
+            received_at = datetime.fromtimestamp(float(ts), tz=timezone.utc).isoformat()
         messages.append(
             {
                 "source": "slack",
-                "id": m.get("ts"),
+                "id": ts,
                 "sender": m.get("user", "unknown"),
                 "channel": channel,
                 "text": m["text"],
+                "received_at": received_at,
             }
         )
     return messages

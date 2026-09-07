@@ -64,4 +64,7 @@ def extract(message: dict) -> dict:
         }
     parsed["source"] = message["source"]
     parsed["source_id"] = message.get("id")
+    parsed["sender"] = message.get("sender")
+    parsed["subject"] = message.get("subject", message.get("channel"))
+    parsed["received_at"] = message.get("received_at")
     return parsed

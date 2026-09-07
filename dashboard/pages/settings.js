@@ -1,9 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Layout from "../components/Layout";
 
 const ENV_ROWS = [
   ["OPENAI_API_KEY", "OpenAI API key (used by the extraction step)"],
-  ["GMAIL_CREDENTIALS_FILE", "Gmail OAuth client secret (credentials.json)"],
   ["SLACK_BOT_TOKEN", "Slack bot token"],
   ["SLACK_CHANNEL_ID", "Slack channel ID (env fallback)"],
 ];
@@ -15,7 +14,12 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
 
-  useEffect(() => {
+  const [gmail, setGmail] = useState({ connected: false, hasCredentials: false, log: null });
+  const [gmailBusy, setGmailBusy] = useState(false);
+  const [gmailMessage, setGmailMessage] = useState(null);
+  const pollRef = useRef(null);
+
+  const loadSettings = () => {
     fetch("/api/settings")
       .then((r) => r.json())
       .then((data) => {
@@ -24,6 +28,20 @@ export default function Settings() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
+  };
+
+  const loadGmailStatus = () =>
+    fetch("/api/gmail-auth")
+      .then((r) => r.json())
+      .then((data) => {
+        setGmail(data);
+        return data;
+      });
+
+  useEffect(() => {
+    loadSettings();
+    loadGmailStatus();
+    return () => clearInterval(pollRef.current);
   }, []);
 
   async function save(e) {
@@ -41,6 +59,46 @@ export default function Settings() {
     setSavedAt(new Date());
   }
 
+  async function connectGmail() {
+    setGmailBusy(true);
+    setGmailMessage(null);
+    const res = await fetch("/api/gmail-auth", { method: "POST" });
+    const data = await res.json();
+
+    if (data.status === "error") {
+      setGmailMessage(data.message);
+      setGmailBusy(false);
+      return;
+    }
+    if (data.status === "already_connected") {
+      setGmailMessage("Already connected.");
+      setGmailBusy(false);
+      loadGmailStatus();
+      return;
+    }
+
+    setGmailMessage(data.message || "Opening browser for Google sign-in…");
+    clearInterval(pollRef.current);
+    let attempts = 0;
+    pollRef.current = setInterval(async () => {
+      attempts += 1;
+      const status = await loadGmailStatus();
+      if (status.connected) {
+        clearInterval(pollRef.current);
+        setGmailBusy(false);
+        setGmailMessage("Connected.");
+      } else if (status.log && status.log.includes("GMAIL_AUTH_ERROR")) {
+        clearInterval(pollRef.current);
+        setGmailBusy(false);
+        setGmailMessage(status.log);
+      } else if (attempts > 90) {
+        clearInterval(pollRef.current);
+        setGmailBusy(false);
+        setGmailMessage("Timed out waiting for sign-in. Try again.");
+      }
+    }, 2000);
+  }
+
   return (
     <Layout>
       <div className="wrap">
@@ -53,8 +111,39 @@ export default function Settings() {
           edited on this page — only their presence is shown below.
         </p>
 
-        <section>
-          <h2>Connection status</h2>
+        <section className="panel">
+          <h2>Gmail connection</h2>
+          <div className="status-row">
+            <span className={`dot ${gmail.hasCredentials ? "ok" : "missing"}`} />
+            <div>
+              <div>OAuth client secret</div>
+              <code className="key">credentials.json</code>
+            </div>
+          </div>
+          <div className="status-row">
+            <span className={`dot ${gmail.connected ? "ok" : "missing"}`} />
+            <div>
+              <div>{gmail.connected ? "Connected" : "Not connected"}</div>
+              <code className="key">token.json</code>
+            </div>
+          </div>
+          <div className="gmail-actions">
+            <button
+              type="button"
+              onClick={connectGmail}
+              disabled={gmailBusy || gmail.connected || !gmail.hasCredentials}
+            >
+              {gmail.connected ? "Connected" : gmailBusy ? "Waiting for sign-in…" : "Connect Gmail"}
+            </button>
+            {!gmail.hasCredentials && (
+              <span className="hint">Add credentials.json to the repo root first.</span>
+            )}
+          </div>
+          {gmailMessage && <div className="gmail-message">{gmailMessage}</div>}
+        </section>
+
+        <section className="panel">
+          <h2>Other connections</h2>
           <div className="status-grid">
             {ENV_ROWS.map(([key, label]) => (
               <div className="status-row" key={key}>
@@ -68,7 +157,7 @@ export default function Settings() {
           </div>
         </section>
 
-        <section>
+        <section className="panel">
           <h2>Extraction settings</h2>
           {loading ? (
             <p className="sub">Loading…</p>
@@ -115,12 +204,14 @@ export default function Settings() {
 
       <style jsx>{`
         .wrap {
-          padding: 24px clamp(16px, 4vw, 48px) 48px;
+          padding: 32px clamp(16px, 4vw, 48px) 48px;
           max-width: 640px;
         }
         h1 {
           margin: 0 0 8px;
-          font-size: 1.5rem;
+          font-size: 1.7rem;
+          font-weight: 700;
+          letter-spacing: -0.02em;
         }
         .sub {
           color: var(--muted);
@@ -128,16 +219,25 @@ export default function Settings() {
           line-height: 1.6;
         }
         .sub code {
-          background: var(--gray-bg);
-          padding: 1px 5px;
-          border-radius: 4px;
+          background: var(--accent-soft);
+          color: var(--accent-strong);
+          padding: 1px 6px;
+          border-radius: 6px;
         }
-        section {
-          margin-top: 28px;
+        .panel {
+          margin-top: 20px;
+          padding: 20px 22px;
+          background: var(--glass);
+          backdrop-filter: blur(20px) saturate(180%);
+          -webkit-backdrop-filter: blur(20px) saturate(180%);
+          border: 1px solid var(--glass-border);
+          box-shadow: var(--shadow);
+          border-radius: 20px;
         }
         h2 {
-          font-size: 1.05rem;
-          margin: 0 0 12px;
+          font-size: 1.02rem;
+          margin: 0 0 14px;
+          font-weight: 700;
         }
         .status-grid {
           display: grid;
@@ -147,10 +247,7 @@ export default function Settings() {
           display: flex;
           align-items: center;
           gap: 10px;
-          background: var(--card);
-          border: 1px solid var(--border);
-          border-radius: 10px;
-          padding: 10px 14px;
+          padding: 8px 0;
           font-size: 0.85rem;
         }
         .dot {
@@ -160,7 +257,8 @@ export default function Settings() {
           flex-shrink: 0;
         }
         .dot.ok {
-          background: var(--green);
+          background: var(--accent-strong);
+          box-shadow: 0 0 0 3px var(--accent-soft);
         }
         .dot.missing {
           background: var(--red);
@@ -168,6 +266,25 @@ export default function Settings() {
         .key {
           color: var(--muted);
           font-size: 0.75rem;
+        }
+        .gmail-actions {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          margin-top: 12px;
+        }
+        .hint {
+          color: var(--muted);
+          font-size: 0.8rem;
+        }
+        .gmail-message {
+          margin-top: 10px;
+          font-size: 0.82rem;
+          color: var(--muted);
+          background: rgba(92, 124, 120, 0.08);
+          padding: 8px 12px;
+          border-radius: 10px;
+          white-space: pre-wrap;
         }
         form {
           display: flex;
@@ -183,11 +300,16 @@ export default function Settings() {
         }
         input {
           font-size: 0.9rem;
-          padding: 8px 10px;
-          border-radius: 8px;
+          padding: 9px 12px;
+          border-radius: 10px;
           border: 1px solid var(--border);
-          background: var(--bg);
+          background: rgba(255, 255, 255, 0.5);
           color: var(--text);
+        }
+        input:focus {
+          outline: none;
+          border-color: var(--accent);
+          box-shadow: 0 0 0 3px var(--accent-soft);
         }
         .actions {
           display: flex;
@@ -196,20 +318,27 @@ export default function Settings() {
         }
         button {
           align-self: flex-start;
-          background: var(--accent);
+          background: linear-gradient(135deg, var(--accent), var(--accent-strong));
           color: #fff;
           border: none;
-          border-radius: 8px;
-          padding: 8px 18px;
-          font-size: 0.9rem;
+          border-radius: 999px;
+          padding: 9px 20px;
+          font-size: 0.88rem;
+          font-weight: 600;
           cursor: pointer;
+          box-shadow: var(--shadow-sm);
+          transition: transform 0.12s ease;
+        }
+        button:hover:not(:disabled) {
+          transform: translateY(-1px);
         }
         button:disabled {
-          opacity: 0.6;
+          opacity: 0.55;
           cursor: default;
+          transform: none;
         }
         .saved {
-          color: var(--green);
+          color: var(--accent-strong);
           font-size: 0.82rem;
         }
       `}</style>

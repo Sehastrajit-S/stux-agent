@@ -21,12 +21,18 @@ function dueStatus(dateStr) {
   return { cls: "due-later", label: `due ${dateStr}` };
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 export default function Home() {
   const [records, setRecords] = useState([]);
   const [generatedAt, setGeneratedAt] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
+
+  const [allMessages, setAllMessages] = useState([]);
+  const [allError, setAllError] = useState(null);
+  const [allLoading, setAllLoading] = useState(true);
 
   const load = useCallback(async () => {
     try {
@@ -40,6 +46,17 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
+
+    try {
+      const res = await fetch("/api/messages");
+      const data = await res.json();
+      setAllMessages(Array.isArray(data.messages) ? data.messages : []);
+      setAllError(data.error || null);
+    } catch (err) {
+      setAllError(err.message);
+    } finally {
+      setAllLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -47,6 +64,15 @@ export default function Home() {
     const id = setInterval(load, 8000);
     return () => clearInterval(id);
   }, [load]);
+
+  const recent = useMemo(() => {
+    const cutoff = Date.now() - DAY_MS;
+    return allMessages.filter((m) => {
+      if (!m.received_at) return false;
+      const t = new Date(m.received_at).getTime();
+      return !Number.isNaN(t) && t >= cutoff;
+    });
+  }, [allMessages]);
 
   const filtered = useMemo(() => {
     if (filter === "all") return records;
@@ -138,13 +164,54 @@ export default function Home() {
         })}
       </main>
 
+      <section className="activity">
+        <h2>Recent Activity (last 24h)</h2>
+        <div className="sub">
+          Every message fetched on the last run, relevant or not — use this to check
+          whether a message actually came through and why it was or wasn't flagged.
+        </div>
+        {allLoading && <div className="empty">Loading…</div>}
+        {!allLoading && allError === "not_found" && (
+          <div className="empty">
+            No run has recorded raw messages yet. This appears after your next{" "}
+            <code>python run_baseline.py</code> run.
+          </div>
+        )}
+        {!allLoading && !allError && recent.length === 0 && (
+          <div className="empty">
+            No messages from the last 24 hours in the most recent run. If you expected
+            one, check the Gmail query on the Settings page and confirm the message is
+            in the account/label that query searches.
+          </div>
+        )}
+        {recent.map((m, i) => (
+          <div className="activity-row" key={`${m.source}-${m.source_id}-${i}`}>
+            <span className={`dot ${m.is_relevant ? "ok" : "off"}`} title={m.is_relevant ? "relevant" : "not relevant"} />
+            <div className="activity-body">
+              <div className="activity-top">
+                <span className="activity-subject">{m.subject || "(no subject)"}</span>
+                <span className="activity-time">
+                  {m.received_at ? new Date(m.received_at).toLocaleString() : ""}
+                </span>
+              </div>
+              <div className="activity-meta">
+                {m.source} · {m.sender || "unknown sender"}
+              </div>
+              {m.summary && <div className="activity-summary">{m.summary}</div>}
+            </div>
+          </div>
+        ))}
+      </section>
+
       <style jsx>{`
         .header {
-          padding: 24px clamp(16px, 4vw, 48px) 8px;
+          padding: 32px clamp(16px, 4vw, 48px) 8px;
         }
         h1 {
           margin: 0 0 4px;
-          font-size: 1.5rem;
+          font-size: 1.7rem;
+          font-weight: 700;
+          letter-spacing: -0.02em;
         }
         .sub {
           color: var(--muted);
@@ -154,79 +221,101 @@ export default function Home() {
           display: flex;
           gap: 12px;
           flex-wrap: wrap;
-          padding: 16px clamp(16px, 4vw, 48px);
+          padding: 20px clamp(16px, 4vw, 48px);
         }
         .stat {
-          background: var(--card);
-          border: 1px solid var(--border);
-          border-radius: 10px;
-          padding: 10px 16px;
-          min-width: 96px;
+          background: var(--glass);
+          backdrop-filter: blur(20px) saturate(180%);
+          -webkit-backdrop-filter: blur(20px) saturate(180%);
+          border: 1px solid var(--glass-border);
+          box-shadow: var(--shadow-sm);
+          border-radius: 16px;
+          padding: 12px 18px;
+          min-width: 100px;
         }
         .stat .n {
-          font-size: 1.4rem;
+          font-size: 1.5rem;
           font-weight: 700;
+          background: linear-gradient(135deg, var(--accent-strong), var(--accent));
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
         }
         .stat .l {
-          font-size: 0.78rem;
+          font-size: 0.76rem;
           color: var(--muted);
         }
         .filters {
           display: flex;
           gap: 8px;
           flex-wrap: wrap;
-          padding: 0 clamp(16px, 4vw, 48px) 16px;
+          padding: 0 clamp(16px, 4vw, 48px) 20px;
         }
         .chip {
-          border: 1px solid var(--border);
-          background: var(--card);
+          border: 1px solid var(--glass-border);
+          background: var(--glass);
+          backdrop-filter: blur(14px);
+          -webkit-backdrop-filter: blur(14px);
           color: var(--text);
           border-radius: 999px;
-          padding: 6px 14px;
+          padding: 7px 16px;
           font-size: 0.85rem;
           cursor: pointer;
+          transition: transform 0.12s ease, box-shadow 0.12s ease;
+        }
+        .chip:hover {
+          box-shadow: var(--shadow-sm);
         }
         .chip.active {
-          background: var(--accent);
-          border-color: var(--accent);
+          background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+          border-color: transparent;
           color: #fff;
+          box-shadow: var(--shadow-sm);
         }
         .cards {
-          padding: 0 clamp(16px, 4vw, 48px) 48px;
+          padding: 0 clamp(16px, 4vw, 48px) 40px;
           display: grid;
-          gap: 10px;
+          gap: 14px;
           grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
         }
         .card {
-          background: var(--card);
-          border: 1px solid var(--border);
-          border-radius: 12px;
-          padding: 14px 16px;
+          background: var(--glass);
+          backdrop-filter: blur(20px) saturate(180%);
+          -webkit-backdrop-filter: blur(20px) saturate(180%);
+          border: 1px solid var(--glass-border);
+          box-shadow: var(--shadow);
+          border-radius: 18px;
+          padding: 16px 18px;
+          transition: transform 0.15s ease;
+        }
+        .card:hover {
+          transform: translateY(-2px);
         }
         .card h3 {
           margin: 0;
           font-size: 1rem;
+          font-weight: 600;
         }
         .badges {
           display: flex;
           gap: 6px;
           flex-wrap: wrap;
-          margin: 8px 0;
+          margin: 10px 0;
         }
         .badge {
           font-size: 0.72rem;
-          padding: 2px 8px;
+          padding: 3px 10px;
           border-radius: 999px;
           font-weight: 600;
           white-space: nowrap;
         }
         .badge.type {
-          background: var(--gray-bg);
-          color: var(--muted);
+          background: var(--accent-soft);
+          color: var(--accent-strong);
         }
         .badge.course {
-          background: #dbeafe;
-          color: #1e40af;
+          background: var(--accent-soft);
+          color: var(--accent-strong);
         }
         .badge.due-overdue {
           background: var(--red-bg);
@@ -241,20 +330,21 @@ export default function Home() {
           color: var(--green);
         }
         .badge.due-none {
-          background: var(--gray-bg);
+          background: rgba(92, 124, 120, 0.12);
           color: var(--muted);
         }
         .summary {
           color: var(--muted);
           font-size: 0.85rem;
           margin-top: 6px;
+          line-height: 1.5;
         }
         .source {
           color: var(--muted);
-          font-size: 0.75rem;
-          margin-top: 10px;
+          font-size: 0.72rem;
+          margin-top: 12px;
           text-transform: uppercase;
-          letter-spacing: 0.03em;
+          letter-spacing: 0.04em;
         }
         .empty {
           color: var(--muted);
@@ -264,9 +354,87 @@ export default function Home() {
           line-height: 1.6;
         }
         .empty code {
-          background: var(--gray-bg);
+          background: var(--accent-soft);
+          color: var(--accent-strong);
           padding: 2px 6px;
-          border-radius: 4px;
+          border-radius: 6px;
+        }
+        .activity {
+          margin: 8px clamp(16px, 4vw, 48px) 40px;
+          padding: 20px 22px 8px;
+          background: var(--glass);
+          backdrop-filter: blur(20px) saturate(180%);
+          -webkit-backdrop-filter: blur(20px) saturate(180%);
+          border: 1px solid var(--glass-border);
+          box-shadow: var(--shadow);
+          border-radius: 20px;
+        }
+        .activity h2 {
+          font-size: 1.05rem;
+          margin: 0 0 4px;
+          font-weight: 700;
+        }
+        .activity .sub {
+          color: var(--muted);
+          font-size: 0.82rem;
+          margin-bottom: 14px;
+        }
+        .activity-row {
+          display: flex;
+          gap: 10px;
+          align-items: flex-start;
+          padding: 12px 0;
+          border-bottom: 1px solid var(--border);
+        }
+        .activity-row:last-child {
+          border-bottom: none;
+        }
+        .dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          margin-top: 6px;
+          flex-shrink: 0;
+        }
+        .dot.ok {
+          background: var(--accent-strong);
+          box-shadow: 0 0 0 3px var(--accent-soft);
+        }
+        .dot.off {
+          background: var(--muted);
+        }
+        .activity-body {
+          flex: 1;
+          min-width: 0;
+        }
+        .activity-top {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          font-size: 0.88rem;
+        }
+        .activity-subject {
+          font-weight: 600;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .activity-time {
+          color: var(--muted);
+          font-size: 0.78rem;
+          white-space: nowrap;
+        }
+        .activity-meta {
+          color: var(--muted);
+          font-size: 0.78rem;
+          text-transform: uppercase;
+          letter-spacing: 0.03em;
+          margin-top: 2px;
+        }
+        .activity-summary {
+          color: var(--muted);
+          font-size: 0.85rem;
+          margin-top: 4px;
         }
       `}</style>
     </Layout>

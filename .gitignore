@@ -5,6 +5,7 @@ token.json
 credentials.json
 client_secret_*.json
 config.json
+.gmail_auth.log
 output/*.json
 output/*.html
 !output/.gitkeep

@@ -1,5 +1,6 @@
 import base64
 import os
+from datetime import datetime, timezone
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -74,6 +75,12 @@ def fetch_recent_emails(max_results: int = 10, query: str = None) -> list:
         headers = full["payload"]["headers"]
         body = _decode_body(full["payload"]) or full.get("snippet", "")
         subject = _get_header(headers, "Subject")
+        received_at = None
+        internal_date = full.get("internalDate")
+        if internal_date:
+            received_at = datetime.fromtimestamp(
+                int(internal_date) / 1000, tz=timezone.utc
+            ).isoformat()
         messages.append(
             {
                 "source": "gmail",
@@ -81,6 +88,7 @@ def fetch_recent_emails(max_results: int = 10, query: str = None) -> list:
                 "sender": _get_header(headers, "From"),
                 "subject": subject,
                 "text": f"{subject}\n{body}".strip(),
+                "received_at": received_at,
             }
         )
     return messages
