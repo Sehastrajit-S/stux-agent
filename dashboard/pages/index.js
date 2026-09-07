@@ -44,7 +44,7 @@ export default function Home() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
-  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(() => isoDate(new Date()));
 
   const [allMessages, setAllMessages] = useState([]);
   const [allError, setAllError] = useState(null);
@@ -111,6 +111,23 @@ export default function Home() {
         </aside>
 
         <div className="right-col">
+          <div className="list-context">
+            <span>
+              {selectedDate
+                ? `Due ${new Date(`${selectedDate}T00:00:00`).toLocaleDateString(undefined, {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                  })}`
+                : "All upcoming tasks"}
+            </span>
+            {selectedDate && (
+              <button type="button" className="clear-link" onClick={() => setSelectedDate(null)}>
+                Show all
+              </button>
+            )}
+          </div>
+
           <div className="filters">
             {FILTERS.map(([value, label]) => (
               <button
@@ -238,6 +255,26 @@ export default function Home() {
         }
         .right-col {
           min-width: 0;
+        }
+        .list-context {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-size: 0.9rem;
+          font-weight: 600;
+          margin-bottom: 12px;
+        }
+        .clear-link {
+          background: none;
+          border: none;
+          color: var(--accent-strong);
+          font-size: 0.78rem;
+          font-weight: 500;
+          cursor: pointer;
+          padding: 2px 6px;
+        }
+        .clear-link:hover {
+          text-decoration: underline;
         }
         .filters {
           display: flex;

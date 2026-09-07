@@ -9,7 +9,7 @@ export default function Layout({ children }) {
       <nav className="nav">
         <Link href="/" className="brand">
           <span className="dot" />
-          Stux Agent
+          STUX
         </Link>
         <Link
           href="/settings"
@@ -47,8 +47,8 @@ export default function Layout({ children }) {
           gap: 10px;
           font-weight: 800;
           font-size: 1.1rem;
-          letter-spacing: -0.01em;
-          color: var(--text);
+          letter-spacing: 0.02em;
+          color: var(--accent-strong);
         }
         .dot {
           width: 10px;
