@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import Layout from "../components/Layout";
+import Calendar from "../components/Calendar";
+import { MailIcon, SlackIcon } from "../components/Icons";
 
 const FILTERS = [
   ["all", "All"],
@@ -21,14 +23,18 @@ function dueStatus(dateStr) {
   return { cls: "due-later", label: `due ${dateStr}` };
 }
 
+function SourceIcon({ source, ...props }) {
+  return source === "slack" ? <SlackIcon {...props} /> : <MailIcon {...props} />;
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export default function Home() {
   const [records, setRecords] = useState([]);
-  const [generatedAt, setGeneratedAt] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
+  const [selectedDate, setSelectedDate] = useState(null);
 
   const [allMessages, setAllMessages] = useState([]);
   const [allError, setAllError] = useState(null);
@@ -39,7 +45,6 @@ export default function Home() {
       const res = await fetch("/api/tasks");
       const data = await res.json();
       setRecords(Array.isArray(data.records) ? data.records : []);
-      setGeneratedAt(data.generatedAt);
       setError(data.error || null);
     } catch (err) {
       setError(err.message);
@@ -75,129 +80,147 @@ export default function Home() {
   }, [allMessages]);
 
   const filtered = useMemo(() => {
-    if (filter === "all") return records;
+    let list = records;
     if (filter === "task" || filter === "course") {
-      return records.filter((r) => r.type === filter || r.type === "both");
+      list = list.filter((r) => r.type === filter || r.type === "both");
+    } else if (filter === "gmail" || filter === "slack") {
+      list = list.filter((r) => r.source === filter);
     }
-    return records.filter((r) => r.source === filter);
-  }, [records, filter]);
+    if (selectedDate) {
+      list = list.filter((r) => r.due_date === selectedDate);
+    }
+    return list;
+  }, [records, filter, selectedDate]);
 
   return (
     <Layout>
-      <header className="header">
-        <h1>Tasks &amp; Courses Dashboard</h1>
-        <div className="sub">
-          {loading
-            ? "Loading…"
-            : `${records.length} item(s)${generatedAt ? ` · last run ${new Date(generatedAt).toLocaleString()}` : ""}`}
-        </div>
-      </header>
+      <div className="layout-grid">
+        <aside className="left-col">
+          <Calendar records={records} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
+        </aside>
 
-      <div className="filters">
-        {FILTERS.map(([value, label]) => (
-          <button
-            key={value}
-            className={`chip${filter === value ? " active" : ""}`}
-            onClick={() => setFilter(value)}
-          >
-            {label}
-          </button>
-        ))}
+        <div className="right-col">
+          <div className="filters">
+            {FILTERS.map(([value, label]) => (
+              <button
+                key={value}
+                className={`chip${filter === value ? " active" : ""}`}
+                onClick={() => setFilter(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <main className="cards">
+            {!loading && error === "not_found" && (
+              <div className="empty">
+                No baseline output found yet.
+                <br />
+                Run <code>python run_baseline.py --source all</code> from the repo root
+                (with Gmail/Slack credentials configured), then this page will pick it up
+                automatically within a few seconds.
+              </div>
+            )}
+            {!loading && !error && filtered.length === 0 && (
+              <div className="empty">
+                {records.length === 0
+                  ? "The last baseline run found no relevant tasks or courses."
+                  : "No items match this filter."}
+              </div>
+            )}
+            {filtered.map((r, i) => {
+              const status = dueStatus(r.due_date);
+              return (
+                <div className="card" key={`${r.source}-${r.source_id}-${i}`}>
+                  <h3>{r.title || "(untitled)"}</h3>
+                  <div className="badges">
+                    <span className="badge type">{r.type || "unknown"}</span>
+                    {r.course_code && <span className="badge course">{r.course_code}</span>}
+                    <span className={`badge ${status.cls}`}>{status.label}</span>
+                    {r.priority && <span className="badge type">{r.priority} priority</span>}
+                  </div>
+                  {r.summary && <div className="summary">{r.summary}</div>}
+                  <div className="source">
+                    <SourceIcon source={r.source} />
+                    {r.source}
+                  </div>
+                </div>
+              );
+            })}
+          </main>
+
+          <section className="activity">
+            <h2>Recent Activity (last 24h)</h2>
+            {allLoading && <div className="empty">Loading…</div>}
+            {!allLoading && allError === "not_found" && (
+              <div className="empty">
+                No run has recorded raw messages yet. This appears after your next{" "}
+                <code>python run_baseline.py</code> run.
+              </div>
+            )}
+            {!allLoading && !allError && recent.length === 0 && (
+              <div className="empty">
+                No messages from the last 24 hours in the most recent run. If you expected
+                one, check the Gmail query on the Settings page and confirm the message is
+                in the account/label that query searches.
+              </div>
+            )}
+            {recent.map((m, i) => (
+              <div className="activity-row" key={`${m.source}-${m.source_id}-${i}`}>
+                <span
+                  className={`dot ${m.is_relevant ? "ok" : "off"}`}
+                  title={m.is_relevant ? "relevant" : "not relevant"}
+                />
+                <div className="activity-body">
+                  <div className="activity-top">
+                    <span className="activity-subject">{m.subject || "(no subject)"}</span>
+                    <span className="activity-time">
+                      {m.received_at ? new Date(m.received_at).toLocaleString() : ""}
+                    </span>
+                  </div>
+                  <div className="activity-meta">
+                    <SourceIcon source={m.source} />
+                    {m.source} · {m.sender || "unknown sender"}
+                  </div>
+                  {m.summary && <div className="activity-summary">{m.summary}</div>}
+                </div>
+              </div>
+            ))}
+          </section>
+        </div>
       </div>
 
-      <main className="cards">
-        {!loading && error === "not_found" && (
-          <div className="empty">
-            No baseline output found yet.
-            <br />
-            Run <code>python run_baseline.py --source all</code> from the repo root
-            (with Gmail/Slack credentials configured), then this page will pick it up
-            automatically within a few seconds.
-          </div>
-        )}
-        {!loading && !error && filtered.length === 0 && (
-          <div className="empty">
-            {records.length === 0
-              ? "The last baseline run found no relevant tasks or courses."
-              : "No items match this filter."}
-          </div>
-        )}
-        {filtered.map((r, i) => {
-          const status = dueStatus(r.due_date);
-          return (
-            <div className="card" key={`${r.source}-${r.source_id}-${i}`}>
-              <h3>{r.title || "(untitled)"}</h3>
-              <div className="badges">
-                <span className="badge type">{r.type || "unknown"}</span>
-                {r.course_code && <span className="badge course">{r.course_code}</span>}
-                <span className={`badge ${status.cls}`}>{status.label}</span>
-                {r.priority && <span className="badge type">{r.priority} priority</span>}
-              </div>
-              {r.summary && <div className="summary">{r.summary}</div>}
-              <div className="source">{r.source}</div>
-            </div>
-          );
-        })}
-      </main>
-
-      <section className="activity">
-        <h2>Recent Activity (last 24h)</h2>
-        <div className="sub">
-          Every message fetched on the last run, relevant or not — use this to check
-          whether a message actually came through and why it was or wasn't flagged.
-        </div>
-        {allLoading && <div className="empty">Loading…</div>}
-        {!allLoading && allError === "not_found" && (
-          <div className="empty">
-            No run has recorded raw messages yet. This appears after your next{" "}
-            <code>python run_baseline.py</code> run.
-          </div>
-        )}
-        {!allLoading && !allError && recent.length === 0 && (
-          <div className="empty">
-            No messages from the last 24 hours in the most recent run. If you expected
-            one, check the Gmail query on the Settings page and confirm the message is
-            in the account/label that query searches.
-          </div>
-        )}
-        {recent.map((m, i) => (
-          <div className="activity-row" key={`${m.source}-${m.source_id}-${i}`}>
-            <span className={`dot ${m.is_relevant ? "ok" : "off"}`} title={m.is_relevant ? "relevant" : "not relevant"} />
-            <div className="activity-body">
-              <div className="activity-top">
-                <span className="activity-subject">{m.subject || "(no subject)"}</span>
-                <span className="activity-time">
-                  {m.received_at ? new Date(m.received_at).toLocaleString() : ""}
-                </span>
-              </div>
-              <div className="activity-meta">
-                {m.source} · {m.sender || "unknown sender"}
-              </div>
-              {m.summary && <div className="activity-summary">{m.summary}</div>}
-            </div>
-          </div>
-        ))}
-      </section>
-
       <style jsx>{`
-        .header {
-          padding: 32px clamp(16px, 4vw, 48px) 8px;
+        .layout-grid {
+          display: grid;
+          grid-template-columns: 320px 1fr;
+          gap: 20px;
+          align-items: start;
+          padding: 24px clamp(16px, 4vw, 48px) 0;
         }
-        h1 {
-          margin: 0 0 4px;
-          font-size: 1.7rem;
-          font-weight: 700;
-          letter-spacing: -0.02em;
+        @media (max-width: 860px) {
+          .layout-grid {
+            grid-template-columns: 1fr;
+          }
         }
-        .sub {
-          color: var(--muted);
-          font-size: 0.9rem;
+        .left-col {
+          position: sticky;
+          top: 88px;
+        }
+        @media (max-width: 860px) {
+          .left-col {
+            position: static;
+          }
+        }
+        .right-col {
+          min-width: 0;
         }
         .filters {
           display: flex;
           gap: 8px;
           flex-wrap: wrap;
-          padding: 20px clamp(16px, 4vw, 48px) 20px;
+          padding-bottom: 20px;
         }
         .chip {
           border: 1px solid var(--glass-border);
@@ -221,10 +244,10 @@ export default function Home() {
           box-shadow: var(--shadow-sm);
         }
         .cards {
-          padding: 0 clamp(16px, 4vw, 48px) 40px;
+          padding-bottom: 24px;
           display: grid;
           gap: 14px;
-          grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
         }
         .card {
           background: var(--glass);
@@ -289,6 +312,9 @@ export default function Home() {
           line-height: 1.5;
         }
         .source {
+          display: flex;
+          align-items: center;
+          gap: 6px;
           color: var(--muted);
           font-size: 0.72rem;
           margin-top: 12px;
@@ -309,7 +335,7 @@ export default function Home() {
           border-radius: 6px;
         }
         .activity {
-          margin: 8px clamp(16px, 4vw, 48px) 40px;
+          margin-bottom: 40px;
           padding: 20px 22px 8px;
           background: var(--glass);
           backdrop-filter: blur(20px) saturate(180%);
@@ -320,13 +346,8 @@ export default function Home() {
         }
         .activity h2 {
           font-size: 1.05rem;
-          margin: 0 0 4px;
+          margin: 0 0 14px;
           font-weight: 700;
-        }
-        .activity .sub {
-          color: var(--muted);
-          font-size: 0.82rem;
-          margin-bottom: 14px;
         }
         .activity-row {
           display: flex;
@@ -374,6 +395,9 @@ export default function Home() {
           white-space: nowrap;
         }
         .activity-meta {
+          display: flex;
+          align-items: center;
+          gap: 6px;
           color: var(--muted);
           font-size: 0.78rem;
           text-transform: uppercase;

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { GearIcon } from "./Icons";
 
 export default function Layout({ children }) {
   const router = useRouter();
@@ -13,8 +14,10 @@ export default function Layout({ children }) {
         <Link
           href="/settings"
           className={`nav-link${router.pathname === "/settings" ? " active" : ""}`}
+          aria-label="Settings"
+          title="Settings"
         >
-          Settings
+          <GearIcon />
         </Link>
       </nav>
       <div className="content">{children}</div>
@@ -42,8 +45,8 @@ export default function Layout({ children }) {
           display: flex;
           align-items: center;
           gap: 8px;
-          font-weight: 600;
-          font-size: 0.92rem;
+          font-weight: 800;
+          font-size: 0.95rem;
           letter-spacing: -0.01em;
           color: var(--text);
         }
@@ -54,9 +57,10 @@ export default function Layout({ children }) {
           background: var(--accent);
         }
         .nav-link {
-          font-size: 0.85rem;
+          display: flex;
+          align-items: center;
           color: var(--muted);
-          padding: 7px 14px;
+          padding: 8px;
           border-radius: 999px;
           transition: background 0.15s ease, color 0.15s ease;
         }
