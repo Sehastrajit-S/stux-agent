@@ -12,6 +12,7 @@ ROOT = Path(__file__).parent
 sys.path.insert(0, str(ROOT / "src"))
 
 from extractor import extract  # noqa: E402
+from dashboard import generate_dashboard  # noqa: E402
 
 
 def load_sample_messages() -> list:
@@ -22,10 +23,10 @@ def load_sample_messages() -> list:
     return messages
 
 
-def load_gmail(max_results: int) -> list:
+def load_gmail(max_results: int, query: str) -> list:
     from gmail_client import fetch_recent_emails
 
-    return fetch_recent_emails(max_results)
+    return fetch_recent_emails(max_results, query=query)
 
 
 def load_slack(channel, limit: int) -> list:
@@ -49,7 +50,18 @@ def main():
         "--slack-channel", default=None, help="Slack channel ID (overrides SLACK_CHANNEL_ID)."
     )
     parser.add_argument(
+        "--gmail-query",
+        default=None,
+        help="Gmail search query (overrides GMAIL_QUERY; default 'from:notifications@instructure.com').",
+    )
+    parser.add_argument(
         "--output", default=str(ROOT / "output" / "tasks_and_courses.json")
+    )
+    parser.add_argument(
+        "--dashboard", default=str(ROOT / "output" / "dashboard.html")
+    )
+    parser.add_argument(
+        "--no-dashboard", action="store_true", help="Skip generating the HTML dashboard."
     )
     args = parser.parse_args()
 
@@ -60,7 +72,7 @@ def main():
     if args.source in ("sample", "all"):
         messages += load_sample_messages()
     if args.source in ("gmail", "all"):
-        messages += load_gmail(args.limit)
+        messages += load_gmail(args.limit, args.gmail_query)
     if args.source in ("slack", "all"):
         messages += load_slack(args.slack_channel, args.limit)
 
@@ -84,6 +96,11 @@ def main():
 
     print(f"\n{len(relevant)} relevant task(s)/course(s) extracted out of {len(messages)} message(s).")
     print(f"Full results written to {out_path}")
+
+    if not args.no_dashboard:
+        dashboard_path = Path(args.dashboard)
+        generate_dashboard(relevant, dashboard_path)
+        print(f"Dashboard written to {dashboard_path} (open it in a browser)")
 
 
 if __name__ == "__main__":

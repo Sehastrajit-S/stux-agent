@@ -9,6 +9,7 @@ from googleapiclient.discovery import build
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 TOKEN_PATH = os.environ.get("GMAIL_TOKEN_PATH", "token.json")
 CREDENTIALS_PATH = os.environ.get("GMAIL_CREDENTIALS_PATH", "credentials.json")
+DEFAULT_QUERY = os.environ.get("GMAIL_QUERY", "from:notifications@instructure.com")
 
 
 def _get_service():
@@ -47,18 +48,24 @@ def _decode_body(payload) -> str:
     return ""
 
 
-def fetch_recent_emails(max_results: int = 10) -> list:
-    """Fetch the most recent inbox emails via the Gmail API and normalize them.
+def fetch_recent_emails(max_results: int = 10, query: str = None) -> list:
+    """Fetch recent inbox emails via the Gmail API and normalize them.
 
     Requires GMAIL_CREDENTIALS_PATH (OAuth client secret JSON from Google Cloud
     Console) and will open a browser for consent on first run, caching the
     resulting token at GMAIL_TOKEN_PATH.
+
+    `query` uses Gmail search syntax (https://support.google.com/mail/answer/7190)
+    and defaults to GMAIL_QUERY / "from:notifications@instructure.com" so a run
+    only pulls Canvas notification emails, which is where assignment and course
+    deadlines actually show up.
     """
+    query = DEFAULT_QUERY if query is None else query
     service = _get_service()
     results = (
         service.users()
         .messages()
-        .list(userId="me", maxResults=max_results, labelIds=["INBOX"])
+        .list(userId="me", maxResults=max_results, labelIds=["INBOX"], q=query)
         .execute()
     )
     messages = []

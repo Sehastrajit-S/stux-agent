@@ -3,7 +3,9 @@ __pycache__/
 .env
 token.json
 credentials.json
+client_secret_*.json
 output/*.json
+output/*.html
 !output/.gitkeep
 .venv/
 venv/

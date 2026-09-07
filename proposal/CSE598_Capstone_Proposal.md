@@ -11,24 +11,28 @@
 
 ## Section 1. Problem Definition
 
-**Task.** Given a batch of recent Gmail and Slack messages, identify the ones that
-contain an actionable task (an assignment, deadline, or to-do) or a course-related
-fact (registration confirmation, meeting time, office-hours change), and extract each
-into a structured record. Consolidate all extracted records into a single list, sorted
-by due date.
+**Task.** Given a batch of recent Canvas (Instructure) notification emails and Slack
+messages, identify the ones that contain an actionable task (an assignment, deadline,
+or to-do) or a course-related fact (enrollment confirmation, meeting time,
+office-hours change), and extract each into a structured record. Consolidate all
+extracted records into a single list, sorted by due date, and present it both as JSON
+and as a browsable dashboard.
 
 **User.** A graduate student enrolled in multiple courses who receives deadline and
-course information scattered across a high-volume Gmail inbox and several Slack
+course information scattered across Canvas notification emails and several Slack
 channels (course channels, project teams, advisor DMs), and currently has to read
 every message manually to avoid missing something.
 
 **Input.** Raw messages from two sources:
-- Gmail: message objects from the Gmail API (`sender`, `subject`, `body`).
+- Gmail: message objects from the Gmail API, filtered to `from:notifications@instructure.com`
+  (`sender`, `subject`, `body`) — i.e. only Canvas notification emails, not the whole inbox.
 - Slack: message objects from `conversations.history` (`sender`, `channel`, `text`).
 
 **Output.** A JSON list of records, each with:
 `{ type: "task" | "course", title, course_code, due_date, priority, source, summary }`,
-sorted by `due_date`.
+sorted by `due_date`, plus a self-contained HTML dashboard (`output/dashboard.html`)
+showing the same records as filterable cards with due-date status (overdue / due soon
+/ later).
 
 **Success / failure.** For a message that states or clearly implies a deadline or
 course fact:
@@ -58,10 +62,12 @@ events, sending reminders) — this baseline is the perception/extraction step t
 those future actions depend on.
 
 **In scope this semester.**
-- Read-only ingestion from Gmail (Gmail API, OAuth2) and Slack (`conversations.history`).
+- Read-only ingestion from Gmail, scoped to Canvas/Instructure notification emails
+  (Gmail API, OAuth2, search-filtered) and Slack (`conversations.history`).
 - Per-message LLM-based classification and structured extraction (task vs. course vs.
   neither, title, course code, due date, priority).
-- A consolidated, due-date-sorted output list from a single batch fetch.
+- A consolidated, due-date-sorted output list from a single batch fetch, viewable as
+  JSON or as a local HTML dashboard.
 
 **Out of scope this semester.**
 - Writing back to a calendar or to-do app.
@@ -80,14 +86,17 @@ reproducible run.
 
 **What it does, step by step.**
 1. Load messages from the chosen `--source`: bundled sample fixtures (default), live
-   Gmail, live Slack, or all three.
+   Gmail (filtered to Canvas/Instructure notifications by default), live Slack, or all
+   three.
 2. Normalize each message to `{source, sender, subject/channel, text}`.
 3. Send each message's text to OpenAI with a fixed system prompt asking for one JSON
    object: `is_relevant`, `type`, `title`, `course_code`, `due_date`, `priority`,
    `summary`.
 4. Filter to relevant results, sort by `due_date`.
-5. Write the sorted list to `output/tasks_and_courses.json` and print a
-   human-readable summary line per message.
+5. Write the sorted list to `output/tasks_and_courses.json`, print a human-readable
+   summary line per message, and render `output/dashboard.html` — a self-contained
+   page (data embedded, no server) with stat counts and filterable, due-date-colored
+   cards.
 
 **Why this is a reasonable starting point.** It is the simplest system that touches
 every piece the target problem needs — real ingestion clients for both sources, and
@@ -99,40 +108,49 @@ attribute (bad extraction vs. bad ingestion) when building the next phase.
 **Files.**
 - [`run_baseline.py`](../run_baseline.py) — CLI entry point and orchestration.
 - [`src/extractor.py`](../src/extractor.py) — the single OpenAI call.
-- [`src/gmail_client.py`](../src/gmail_client.py) — live Gmail ingestion.
+- [`src/gmail_client.py`](../src/gmail_client.py) — live Gmail ingestion, search-filtered
+  to `from:notifications@instructure.com` by default.
 - [`src/slack_client.py`](../src/slack_client.py) — live Slack ingestion.
+- [`src/dashboard.py`](../src/dashboard.py) — renders extracted records as a
+  self-contained HTML dashboard.
 - [`examples/sample_gmail_messages.json`](../examples/sample_gmail_messages.json),
   [`examples/sample_slack_messages.json`](../examples/sample_slack_messages.json) —
   fixtures for the reproducible test case.
 
 ## Section 4. Test Case and Baseline Output
 
-**Sample input.** The six bundled fixture messages (three Gmail, three Slack):
-1. Gmail — professor's email: CSE598 HW3 deadline extended to 2026-09-12.
-2. Gmail — registrar: CSE511 registration confirmation with meeting time.
-3. Gmail — LinkedIn newsletter (irrelevant).
-4. Slack — advisor reminder: capstone proposal due tonight, Sept 6, 11:59 PM Phoenix.
-5. Slack — classmate asking about lunch (irrelevant).
-6. Slack — TA: CSE598 office hours moved to Thursdays 2–3pm this week.
+**Sample input.** The seven bundled fixture messages (four Gmail — all styled as real
+Canvas/Instructure notification emails, since that's the exact live filter used —
+three Slack):
+1. Gmail — Canvas: "Assignment Due Soon: Homework 3", CSE 598, due 2026-09-12.
+2. Gmail — Canvas: "New Announcement" — CSE 598 office hours moved to Thursday 2–3pm.
+3. Gmail — Canvas: "Grade Posted: Homework 2" (informational, not a task/course fact
+   worth tracking — irrelevant).
+4. Gmail — Canvas: "Enrollment Confirmation: CSE 511" with meeting time.
+5. Slack — advisor reminder: capstone proposal due tonight, Sept 6, 11:59 PM Phoenix.
+6. Slack — classmate asking about lunch (irrelevant).
+7. Slack — TA: CSE598 office hours moved to Thursdays 2–3pm this week.
 
-**Expected behavior.** Messages 1, 2, 4, and 6 should be flagged `is_relevant: true`
-with a reasonable `title` and, where stated, `course_code` and `due_date`. Messages 3
-and 5 should be flagged `is_relevant: false`.
+**Expected behavior.** Messages 1, 2, 4, 5, and 7 should be flagged `is_relevant:
+true` with a reasonable `title` and, where stated, `course_code` and `due_date`.
+Messages 3 and 6 should be flagged `is_relevant: false`.
 
 **Actual baseline output.** Ran `python run_baseline.py --source sample`:
 
 ```
-Loaded 6 message(s) from source='sample'.
+Loaded 7 message(s) from source='sample'.
 
-[RELEVANT] (gmail) 'CSE598 HW3 deadline extension'
-[RELEVANT] (gmail) 'CSE511 Data Processing at Scale Registration Confirmation'
-[skip    ] (gmail) '5 new jobs match your profile\nCheck out these new job postin'
+[RELEVANT] (gmail) 'Homework 3 Due Soon'
+[RELEVANT] (gmail) 'Office Hours Moved'
+[skip    ] (gmail) 'Grade Posted: Homework 2\nCSE 598: Agentic AI Systems\nYour gr'
+[RELEVANT] (gmail) 'Enrollment Confirmation for CSE 511'
 [RELEVANT] (slack) 'Capstone proposal submission'
 [skip    ] (slack) 'anyone want to grab lunch after class today lol'
-[RELEVANT] (slack) 'Office Hours Change for CSE598'
+[RELEVANT] (slack) 'Change in Office Hours for CSE598'
 
-4 relevant task(s)/course(s) extracted out of 6 message(s).
+5 relevant task(s)/course(s) extracted out of 7 message(s).
 Full results written to output/tasks_and_courses.json
+Dashboard written to output/dashboard.html (open it in a browser)
 ```
 
 `output/tasks_and_courses.json` (sorted by `due_date`):
@@ -146,62 +164,85 @@ Full results written to output/tasks_and_courses.json
     "course_code": "CSE598",
     "due_date": "2023-09-06",
     "priority": "high",
-    "summary": "The message contains a reminder about the due date for the capstone proposal, making it relevant for students in the course.",
+    "summary": "The message includes a task to submit the capstone proposal by a specified deadline.",
     "source": "slack",
     "source_id": "slack-1757195000.000100"
   },
   {
     "is_relevant": true,
-    "type": "course",
-    "title": "CSE598 HW3 deadline extension",
+    "type": "task",
+    "title": "Homework 3 Due Soon",
     "course_code": "CSE598",
     "due_date": "2026-09-12",
-    "priority": "medium",
-    "summary": "The email contains an announcement about the extension of the deadline for Homework 3 in the CSE598 course.",
+    "priority": "high",
+    "summary": "This email contains a task regarding the due date for Homework 3 in the CSE 598 course.",
     "source": "gmail",
     "source_id": "gmail-001"
   },
   {
     "is_relevant": true,
     "type": "course",
-    "title": "CSE511 Data Processing at Scale Registration Confirmation",
-    "course_code": "CSE511",
+    "title": "Office Hours Moved",
+    "course_code": "CSE598",
     "due_date": null,
     "priority": null,
-    "summary": "The message confirms registration for CSE511, making it an important course-related announcement.",
+    "summary": "The message informs about a change in office hours for the CSE 598 course.",
     "source": "gmail",
     "source_id": "gmail-002"
   },
   {
     "is_relevant": true,
     "type": "course",
-    "title": "Office Hours Change for CSE598",
-    "course_code": "CSE598",
+    "title": "Enrollment Confirmation for CSE 511",
+    "course_code": "CSE511",
     "due_date": null,
     "priority": null,
-    "summary": "The message provides a course-related announcement regarding a temporary change in office hours.",
+    "summary": "The message confirms enrollment in a course, providing specific details about the course schedule.",
+    "source": "gmail",
+    "source_id": "gmail-004"
+  },
+  {
+    "is_relevant": true,
+    "type": "course",
+    "title": "Change in Office Hours for CSE598",
+    "course_code": "CSE598",
+    "due_date": null,
+    "priority": "low",
+    "summary": "The message announces a temporary change in office hours for a specific course.",
     "source": "slack",
     "source_id": "slack-1757195200.000300"
   }
 ]
 ```
 
-*[Paste a screenshot of this terminal run here before submitting to Canvas.]*
+Plus `output/dashboard.html`: a card grid with stat counts (Total / Tasks / Courses /
+Overdue / Due ≤ 7d) and filter chips for All / Tasks / Courses / Gmail / Slack.
 
-**What worked.** Relevance classification was perfect on all 6 messages: both
-irrelevant messages (the LinkedIn newsletter, the lunch small talk) were correctly
-skipped, and all 4 relevant messages (a homework extension, a registration
-confirmation, a proposal-deadline reminder, and an office-hours change) were
-correctly flagged, with the right `course_code` attached to each.
+*[Paste a screenshot of this terminal run and the dashboard page here before
+submitting to Canvas.]*
 
-**What did not work.** Two concrete failures, both consistent with the limitation
-already anticipated in Section 7 (the model isn't given the message's actual
-timestamp): (1) the Slack reminder said only "today, September 6" with no year — the
-model filled in `due_date: "2023-09-06"`, guessing the wrong year instead of leaving
-it null or inferring the current year, a hallucination risk. (2) the HW3 extension
-message was typed `"course"` rather than `"task"`/`"both"`, even though it states an
-actionable deadline — the type field is not fully reliable and would need either a
-stricter schema/enum guard or a second pass before being trusted downstream.
+**What worked.** Relevance classification was perfect on all 7 messages: both
+irrelevant messages (the grade-posted notification, the lunch small talk) were
+correctly skipped, and all 5 relevant messages (a homework deadline, an
+office-hours-change email, an enrollment confirmation, a proposal-deadline reminder,
+and a duplicate office-hours-change Slack message) were correctly flagged, with the
+right `course_code` attached to each.
+
+**What did not work.** Three concrete failures:
+1. The Slack reminder said only "today, September 6" with no year — the model filled
+   in `due_date: "2023-09-06"`, guessing the wrong year instead of leaving it null or
+   inferring the current year from context, a hallucination risk. This is consistent
+   with the limitation anticipated in Section 7 (the model isn't given the message's
+   actual timestamp).
+2. Messages 2 (Gmail) and 7 (Slack) both describe the same real-world event — CSE598
+   office hours moving — but arrive as two separate, undeduplicated records in the
+   output, exactly the "no deduplication across sources" weakness called out in
+   Section 7.
+3. Re-running the identical command produced a different `type` for the HW3 message
+   across two runs (`"course"` on one run, `"task"` on another, for effectively the
+   same input) — the single-call classification is not fully deterministic even at
+   the schema level, which the evaluation plan (Section 6) will need to account for
+   (e.g. by running each labeled example multiple times).
 
 ## Section 5. Reproducibility and Run Instructions
 
@@ -230,8 +271,8 @@ python run_baseline.py --source sample
 **Input location.** `examples/sample_gmail_messages.json`,
 `examples/sample_slack_messages.json`.
 
-**Output location.** `output/tasks_and_courses.json`, plus a printed summary on
-stdout.
+**Output location.** `output/tasks_and_courses.json`, `output/dashboard.html` (open
+directly in a browser, no server needed), plus a printed summary on stdout.
 
 **Known setup limitations.** Live Gmail auth opens a browser for OAuth consent (won't
 work headless without port forwarding); the Slack bot must be invited to its target
@@ -270,6 +311,8 @@ labeled test set and a script that computes these metrics automatically.
   retried or flagged for review.
 - English-only prompt; no evaluation yet of non-English messages.
 - No write-back (calendar, to-do list) — the system only observes, it does not act.
+- Classification is not fully deterministic run-to-run (observed directly in Section 4:
+  the same HW3 message was typed `"course"` on one run and `"task"` on another).
 
 **Expected failure cases.** Messages that mention a date unrelated to a deadline
 (e.g., "the meeting last Tuesday"), ambiguous course references without an explicit
