@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import Layout from "../components/Layout";
 import Calendar from "../components/Calendar";
 import { MailIcon } from "../components/Icons";
-import { getTasks, getMessages } from "../lib/api";
+import { getTasks, getMessages, getActionsStatus, pushAction, pushAllActions } from "../lib/api";
 
 const FILTERS = [
   ["all", "All"],
@@ -42,6 +42,17 @@ function openLink(item) {
   return null;
 }
 
+// Mirrors the backend's routing rule (backend/routers/actions.py::_destination)
+// so the button can show the right label before it's ever clicked.
+function destinationKind(record) {
+  if (record.type === "course" && record.due_date) return "event";
+  return "task";
+}
+
+function destinationLabel(kind) {
+  return kind === "event" ? "Google Calendar" : "Google Tasks";
+}
+
 export default function Home() {
   const [records, setRecords] = useState([]);
   const [error, setError] = useState(null);
@@ -52,6 +63,11 @@ export default function Home() {
   const [allMessages, setAllMessages] = useState([]);
   const [allError, setAllError] = useState(null);
   const [allLoading, setAllLoading] = useState(true);
+
+  const [syncedMap, setSyncedMap] = useState({});
+  const [syncingIds, setSyncingIds] = useState(() => new Set());
+  const [pushingAll, setPushingAll] = useState(false);
+  const [syncMessage, setSyncMessage] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -73,7 +89,53 @@ export default function Home() {
     } finally {
       setAllLoading(false);
     }
+
+    try {
+      const data = await getActionsStatus();
+      setSyncedMap(data.synced || {});
+    } catch {
+      // non-fatal - the sync buttons just won't know what's already pushed
+    }
   }, []);
+
+  async function pushOne(sourceId) {
+    setSyncingIds((prev) => new Set(prev).add(sourceId));
+    setSyncMessage(null);
+    try {
+      await pushAction(sourceId);
+      const data = await getActionsStatus();
+      setSyncedMap(data.synced || {});
+    } catch (err) {
+      setSyncMessage(err.message);
+    } finally {
+      setSyncingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(sourceId);
+        return next;
+      });
+    }
+  }
+
+  async function pushAll() {
+    setPushingAll(true);
+    setSyncMessage(null);
+    try {
+      const result = await pushAllActions();
+      const tasks = result.created.filter((c) => c.kind === "task").length;
+      const events = result.created.filter((c) => c.kind === "event").length;
+      setSyncMessage(
+        `Added ${tasks} task(s) and ${events} calendar event(s)${
+          result.errors.length ? `, ${result.errors.length} failed` : ""
+        }.`
+      );
+      const data = await getActionsStatus();
+      setSyncedMap(data.synced || {});
+    } catch (err) {
+      setSyncMessage(err.message);
+    } finally {
+      setPushingAll(false);
+    }
+  }
 
   useEffect(() => {
     load();
@@ -139,7 +201,16 @@ export default function Home() {
                 Show all
               </button>
             )}
+            <button
+              type="button"
+              className="sync-all-link"
+              onClick={pushAll}
+              disabled={pushingAll || filtered.length === 0}
+            >
+              {pushingAll ? "Adding…" : "Add all to Tasks/Calendar"}
+            </button>
           </div>
+          {syncMessage && <div className="sync-message">{syncMessage}</div>}
 
           <div className="filters">
             {FILTERS.map(([value, label]) => (
@@ -204,6 +275,29 @@ export default function Home() {
                     Gmail
                     {href && <span className="open-hint">Open mail ↗</span>}
                   </div>
+                  {r.source_id &&
+                    (() => {
+                      const synced = syncedMap[r.source_id];
+                      const kind = synced ? synced.kind : destinationKind(r);
+                      return (
+                        <button
+                          type="button"
+                          className={`task-btn${synced ? " synced" : ""}`}
+                          disabled={Boolean(synced) || syncingIds.has(r.source_id)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            pushOne(r.source_id);
+                          }}
+                        >
+                          {synced
+                            ? `Added to ${destinationLabel(kind)} ✓`
+                            : syncingIds.has(r.source_id)
+                            ? "Adding…"
+                            : `Add to ${destinationLabel(kind)}`}
+                        </button>
+                      );
+                    })()}
                 </CardTag>
               );
             })}
@@ -277,7 +371,14 @@ export default function Home() {
                     {m.due_date && <span className="badge due-later">due {m.due_date}</span>}
                   </div>
                 )}
-                {m.summary && <div className="activity-summary">{m.summary}</div>}
+                {m.overview && <div className="activity-summary">{m.overview}</div>}
+                {m.steps && m.steps.length > 0 && (
+                  <ul className="activity-steps">
+                    {m.steps.map((step, si) => (
+                      <li key={si}>{step}</li>
+                    ))}
+                  </ul>
+                )}
               </div>
             </RowTag>
           );
@@ -328,6 +429,30 @@ export default function Home() {
         }
         .clear-link:hover {
           text-decoration: underline;
+        }
+        .sync-all-link {
+          margin-left: auto;
+          background: var(--surface-muted);
+          border: none;
+          color: var(--text);
+          font-size: 0.78rem;
+          font-weight: 600;
+          cursor: pointer;
+          padding: 6px 12px;
+          border-radius: 999px;
+        }
+        .sync-all-link:hover:not(:disabled) {
+          background: var(--accent-soft);
+          color: var(--accent-strong);
+        }
+        .sync-all-link:disabled {
+          opacity: 0.55;
+          cursor: default;
+        }
+        .sync-message {
+          font-size: 0.8rem;
+          color: var(--muted);
+          margin-bottom: 10px;
         }
         .filters {
           display: flex;
@@ -385,6 +510,30 @@ export default function Home() {
           font-weight: 700;
           text-transform: none;
           letter-spacing: normal;
+        }
+        .task-btn {
+          margin-top: 10px;
+          width: 100%;
+          background: var(--surface-muted);
+          border: none;
+          border-radius: 10px;
+          padding: 7px;
+          font-size: 0.78rem;
+          font-weight: 600;
+          color: var(--text);
+          cursor: pointer;
+        }
+        .task-btn:hover:not(:disabled) {
+          background: var(--accent-soft);
+          color: var(--accent-strong);
+        }
+        .task-btn:disabled {
+          cursor: default;
+        }
+        .task-btn.synced {
+          background: var(--accent-soft);
+          color: var(--accent-strong);
+          opacity: 0.85;
         }
         .card h3 {
           margin: 0;
@@ -548,6 +697,26 @@ export default function Home() {
           color: var(--muted);
           font-size: 0.85rem;
           margin-top: 4px;
+        }
+        .activity-steps {
+          margin: 6px 0 0;
+          padding-left: 0;
+          list-style: none;
+          display: flex;
+          flex-direction: column;
+          gap: 3px;
+        }
+        .activity-steps li {
+          font-size: 0.83rem;
+          color: var(--text);
+          padding-left: 20px;
+          position: relative;
+        }
+        .activity-steps li::before {
+          content: "☐";
+          position: absolute;
+          left: 0;
+          color: var(--accent-strong);
         }
       `}</style>
     </Layout>

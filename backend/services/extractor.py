@@ -14,16 +14,18 @@ Respond with ONLY a JSON object, no other text, matching this schema exactly:
 {
   "is_relevant": true or false,
   "type": "task" | "course" | "both" | "none",
-  "title": short string summarizing the item, or null,
+  "title": short string summarizing what this actually is, or null,
   "course_code": string like "CSE598" if one is mentioned, or null,
   "due_date": "YYYY-MM-DD" if a date is stated or clearly implied, or null,
   "priority": "high" | "medium" | "low" | null,
-  "summary": if is_relevant is true, a 2-4 sentence practical overview of what the
-    reader actually needs to do - restate any specific dates/times mentioned, name
-    any form, sign-up sheet, or link that was referenced, and spell out the concrete
-    next step(s) (e.g. "sign up for a presentation slot", "submit via Canvas by the
-    deadline"). If nothing actionable is required beyond reading it, say so briefly.
+  "overview": if is_relevant is true, one short sentence stating plainly what this
+    is (e.g. "Presentation slot sign-up for CSE598" or "Exam date for CSE511").
     If is_relevant is false, one short sentence explaining why it was skipped.
+  "steps": if is_relevant is true, a list of short, concrete checklist items for
+    what the reader needs to do - each one an action ("Sign up on the linked Google
+    Sheet by Sept 8", "Submit via Canvas", "Bring a calculator to the exam"), not a
+    restatement of the email. Empty list if nothing actionable beyond being aware of
+    it (e.g. a pure FYI or a posted grade). If is_relevant is false, empty list.
 }"""
 
 
@@ -64,8 +66,15 @@ def extract(message: dict) -> dict:
             "course_code": None,
             "due_date": None,
             "priority": None,
-            "summary": f"Could not parse model output: {raw[:200]}",
+            "overview": f"Could not parse model output: {raw[:200]}",
+            "steps": [],
         }
+
+    # Defensive: don't let a malformed model response (wrong type, missing
+    # key) break downstream code that assumes `steps` is always a list.
+    steps = parsed.get("steps")
+    parsed["steps"] = steps if isinstance(steps, list) else []
+
     parsed["source"] = message["source"]
     parsed["source_id"] = message.get("id")
     parsed["sender"] = message.get("sender")

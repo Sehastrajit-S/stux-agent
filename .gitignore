@@ -11,3 +11,4 @@ output/*.html
 !output/.gitkeep
 .venv/
 venv/
+.claude/

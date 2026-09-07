@@ -2,30 +2,15 @@ import base64
 import os
 from datetime import datetime, timezone
 
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
-SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
-TOKEN_PATH = os.environ.get("GMAIL_TOKEN_PATH", "token.json")
-CREDENTIALS_PATH = os.environ.get("GMAIL_CREDENTIALS_PATH", "credentials.json")
+from .google_auth import CREDENTIALS_PATH, TOKEN_PATH, get_credentials  # noqa: F401
+
 DEFAULT_QUERY = os.environ.get("GMAIL_QUERY", "from:notifications@instructure.com")
 
 
 def _get_service():
-    creds = None
-    if os.path.exists(TOKEN_PATH):
-        creds = Credentials.from_authorized_user_file(TOKEN_PATH, SCOPES)
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_PATH, SCOPES)
-            creds = flow.run_local_server(port=0)
-        with open(TOKEN_PATH, "w", encoding="utf-8") as f:
-            f.write(creds.to_json())
-    return build("gmail", "v1", credentials=creds)
+    return build("gmail", "v1", credentials=get_credentials())
 
 
 def _get_header(headers, name):

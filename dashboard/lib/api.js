@@ -45,3 +45,19 @@ export function triggerRun(body = {}) {
     body: JSON.stringify(body),
   });
 }
+
+export function getActionsStatus() {
+  return request("/api/actions/status");
+}
+
+export function pushAction(sourceId) {
+  return request("/api/actions/push", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ source_id: sourceId }),
+  });
+}
+
+export function pushAllActions() {
+  return request("/api/actions/push-all", { method: "POST" });
+}

@@ -14,6 +14,14 @@ actually talks to Gmail and OpenAI — the dashboard never touches these values.
 - `GMAIL_TOKEN_PATH` (default `token.json`) — created automatically the first time you
   complete the interactive OAuth consent flow (opens a browser, or use the "Connect
   Gmail" button on the dashboard's Settings page, which asks the backend to run it).
+  The flow requests the Gmail-readonly, Tasks, and Calendar-events scopes together
+  in one consent screen (`backend/services/google_auth.py`), since pushing extracted
+  records needs write access to both Tasks and Calendar. If a token was created
+  before a scope was added, the backend detects the gap automatically and re-prompts
+  for consent (covering every scope at once) rather than failing silently — the
+  **Google Tasks API** and **Google Calendar API** each also need to be enabled for
+  your Cloud project (Cloud Console → APIs & Services → Library → search each name →
+  Enable), the same one-time step as enabling the Gmail API.
 - `GMAIL_QUERY` (optional, defaults to `from:notifications@instructure.com`) — Gmail
   search syntax restricting which emails are pulled.
 
@@ -44,6 +52,17 @@ FastAPI app:
   whether `OPENAI_API_KEY` and Gmail credentials are present.
 - `backend/routers/gmail.py` — `GET /api/gmail-auth`, `POST /api/gmail-auth`,
   checking connection status / running the OAuth flow in a background thread.
+- `backend/routers/actions.py` — `GET /api/actions/status`, `POST /api/actions/push`
+  (one record, by `source_id`), `POST /api/actions/push-all`. For each pushed record,
+  `_destination()` decides Task vs. Calendar: a `type: "course"` record with a
+  `due_date` becomes a Google Calendar all-day event (exam, class session,
+  deadline-as-event); anything else relevant becomes a Google Task with that due
+  date attached. Either way the note/description is built by
+  `backend/services/notes.py` from the record's `overview` (one sentence) + `steps`
+  (checklist), not the raw extraction dump. `backend/services/sync_store.py` tracks
+  which `source_id`s were already pushed and to which destination
+  (`output/google_actions_sync.json`) so re-pushing — a second click, a re-run —
+  never creates duplicates.
 
 CORS is restricted to `http://localhost:3000`. To allow another frontend origin,
 adjust `allow_origins` in `backend/main.py`.
@@ -51,7 +70,7 @@ adjust `allow_origins` in `backend/main.py`.
 With just the backend running (no dashboard needed), open
 [http://localhost:8000/docs](http://localhost:8000/docs) for an interactive Swagger
 UI that lets you call any of these directly from the browser — routes are grouped by
-tag (tasks/run/settings/gmail), matching the router files above.
+tag (tasks/run/settings/gmail/actions), matching the router files above.
 
 ## Dashboard (Next.js, pure frontend)
 
@@ -61,6 +80,9 @@ page calls the backend via `dashboard/lib/api.js`, which reads its base URL from
 `http://localhost:8000`). Two pages:
 - `/` fetches from `/api/tasks` and `/api/messages` and renders filterable cards, a
   calendar, and a "Day overview" of that day's messages, polling every 8 seconds.
+  Each card (and a bulk "Add all to Tasks/Calendar" action) calls
+  `/api/actions/push[-all]` and shows "Added to Google Tasks ✓" or "Added to Google
+  Calendar ✓" once synced, matching whichever destination the backend actually used.
 - `/settings` fetches/posts `/api/settings`, shows (as green/red status dots) whether
   `OPENAI_API_KEY` and Gmail credentials are configured, triggers `/api/run`, drives
   the Gmail OAuth flow via `/api/gmail-auth`, and toggles dark mode (a purely
