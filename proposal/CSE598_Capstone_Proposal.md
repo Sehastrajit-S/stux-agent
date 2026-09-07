@@ -72,8 +72,8 @@ those future actions depend on.
 
 ## Section 3. Runnable Baseline
 
-**What it uses.** The Anthropic Claude API (single call per message, model
-`claude-sonnet-5` by default) for extraction; the Gmail API
+**What it uses.** The OpenAI API (single call per message, model
+`gpt-4o-mini` by default) for extraction; the Gmail API
 (`google-api-python-client`, OAuth2) and the Slack Web API (`slack_sdk`) for live
 ingestion; a bundled pair of JSON fixture files for the default, credential-free
 reproducible run.
@@ -82,7 +82,7 @@ reproducible run.
 1. Load messages from the chosen `--source`: bundled sample fixtures (default), live
    Gmail, live Slack, or all three.
 2. Normalize each message to `{source, sender, subject/channel, text}`.
-3. Send each message's text to Claude with a fixed system prompt asking for one JSON
+3. Send each message's text to OpenAI with a fixed system prompt asking for one JSON
    object: `is_relevant`, `type`, `title`, `course_code`, `due_date`, `priority`,
    `summary`.
 4. Filter to relevant results, sort by `due_date`.
@@ -98,7 +98,7 @@ attribute (bad extraction vs. bad ingestion) when building the next phase.
 
 **Files.**
 - [`run_baseline.py`](../run_baseline.py) — CLI entry point and orchestration.
-- [`src/extractor.py`](../src/extractor.py) — the single Claude call.
+- [`src/extractor.py`](../src/extractor.py) — the single OpenAI call.
 - [`src/gmail_client.py`](../src/gmail_client.py) — live Gmail ingestion.
 - [`src/slack_client.py`](../src/slack_client.py) — live Slack ingestion.
 - [`examples/sample_gmail_messages.json`](../examples/sample_gmail_messages.json),
@@ -119,18 +119,94 @@ attribute (bad extraction vs. bad ingestion) when building the next phase.
 with a reasonable `title` and, where stated, `course_code` and `due_date`. Messages 3
 and 5 should be flagged `is_relevant: false`.
 
-**Actual baseline output.** *[Run `python run_baseline.py --source sample` with your
-own `ANTHROPIC_API_KEY` set, then paste the console output and a screenshot of
-`output/tasks_and_courses.json` here before submitting.]*
+**Actual baseline output.** Ran `python run_baseline.py --source sample`:
 
-**What worked / what did not.** *[Fill in after running: note anything the model
-mis-flagged, e.g. whether it correctly resolved "this week" for the office-hours
-message, or whether it under/over-triggered on the newsletter.]*
+```
+Loaded 6 message(s) from source='sample'.
+
+[RELEVANT] (gmail) 'CSE598 HW3 deadline extension'
+[RELEVANT] (gmail) 'CSE511 Data Processing at Scale Registration Confirmation'
+[skip    ] (gmail) '5 new jobs match your profile\nCheck out these new job postin'
+[RELEVANT] (slack) 'Capstone proposal submission'
+[skip    ] (slack) 'anyone want to grab lunch after class today lol'
+[RELEVANT] (slack) 'Office Hours Change for CSE598'
+
+4 relevant task(s)/course(s) extracted out of 6 message(s).
+Full results written to output/tasks_and_courses.json
+```
+
+`output/tasks_and_courses.json` (sorted by `due_date`):
+
+```json
+[
+  {
+    "is_relevant": true,
+    "type": "task",
+    "title": "Capstone proposal submission",
+    "course_code": "CSE598",
+    "due_date": "2023-09-06",
+    "priority": "high",
+    "summary": "The message contains a reminder about the due date for the capstone proposal, making it relevant for students in the course.",
+    "source": "slack",
+    "source_id": "slack-1757195000.000100"
+  },
+  {
+    "is_relevant": true,
+    "type": "course",
+    "title": "CSE598 HW3 deadline extension",
+    "course_code": "CSE598",
+    "due_date": "2026-09-12",
+    "priority": "medium",
+    "summary": "The email contains an announcement about the extension of the deadline for Homework 3 in the CSE598 course.",
+    "source": "gmail",
+    "source_id": "gmail-001"
+  },
+  {
+    "is_relevant": true,
+    "type": "course",
+    "title": "CSE511 Data Processing at Scale Registration Confirmation",
+    "course_code": "CSE511",
+    "due_date": null,
+    "priority": null,
+    "summary": "The message confirms registration for CSE511, making it an important course-related announcement.",
+    "source": "gmail",
+    "source_id": "gmail-002"
+  },
+  {
+    "is_relevant": true,
+    "type": "course",
+    "title": "Office Hours Change for CSE598",
+    "course_code": "CSE598",
+    "due_date": null,
+    "priority": null,
+    "summary": "The message provides a course-related announcement regarding a temporary change in office hours.",
+    "source": "slack",
+    "source_id": "slack-1757195200.000300"
+  }
+]
+```
+
+*[Paste a screenshot of this terminal run here before submitting to Canvas.]*
+
+**What worked.** Relevance classification was perfect on all 6 messages: both
+irrelevant messages (the LinkedIn newsletter, the lunch small talk) were correctly
+skipped, and all 4 relevant messages (a homework extension, a registration
+confirmation, a proposal-deadline reminder, and an office-hours change) were
+correctly flagged, with the right `course_code` attached to each.
+
+**What did not work.** Two concrete failures, both consistent with the limitation
+already anticipated in Section 7 (the model isn't given the message's actual
+timestamp): (1) the Slack reminder said only "today, September 6" with no year — the
+model filled in `due_date: "2023-09-06"`, guessing the wrong year instead of leaving
+it null or inferring the current year, a hallucination risk. (2) the HW3 extension
+message was typed `"course"` rather than `"task"`/`"both"`, even though it states an
+actionable deadline — the type field is not fully reliable and would need either a
+stricter schema/enum guard or a second pass before being trusted downstream.
 
 ## Section 5. Reproducibility and Run Instructions
 
 **Dependencies.** Python 3.10+; see [`requirements.txt`](../requirements.txt)
-(`anthropic`, `python-dotenv`, `google-api-python-client`, `google-auth-httplib2`,
+(`openai`, `python-dotenv`, `google-api-python-client`, `google-auth-httplib2`,
 `google-auth-oauthlib`, `slack_sdk`).
 
 **Install.**
@@ -141,7 +217,7 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-**Required environment variables.** Only `ANTHROPIC_API_KEY` is required for the
+**Required environment variables.** Only `OPENAI_API_KEY` is required for the
 reproducible test case below. Gmail/Slack credentials are only needed for the
 optional live-source modes. Full reference in
 [`examples/readme.md`](../examples/readme.md).
@@ -175,7 +251,7 @@ hand-labeled set of real (or realistic synthetic) messages and measure:
   `due_date` match the ground truth exactly (or are null when the text doesn't state
   one, to catch hallucination).
 - **Latency and cost per message**: wall-clock time and token cost of the single
-  Claude call, as a baseline to compare against a more complex (multi-call, tool-use)
+  OpenAI call, as a baseline to compare against a more complex (multi-call, tool-use)
   future system.
 - **Tool failure rate**: how often the Gmail/Slack clients or the JSON parse step
   fail, as ingestion reliability matters independently of extraction quality.
@@ -209,5 +285,5 @@ calendar event or Slack reminder) gated behind user confirmation.
 quota and OAuth app verification requirements if this needs to run for users other
 than the developer.
 
-**Help / infrastructure needed.** None beyond a personal Anthropic API key, a Google
+**Help / infrastructure needed.** None beyond a personal OpenAI API key, a Google
 Cloud project with the Gmail API enabled, and a Slack app/bot token for testing.

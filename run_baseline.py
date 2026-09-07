@@ -53,8 +53,8 @@ def main():
     )
     args = parser.parse_args()
 
-    if "ANTHROPIC_API_KEY" not in os.environ:
-        sys.exit("ERROR: set the ANTHROPIC_API_KEY environment variable before running.")
+    if "OPENAI_API_KEY" not in os.environ:
+        sys.exit("ERROR: set the OPENAI_API_KEY environment variable before running.")
 
     messages = []
     if args.source in ("sample", "all"):

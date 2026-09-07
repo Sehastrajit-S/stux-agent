@@ -4,8 +4,8 @@ This baseline is configured entirely through environment variables. Copy `.env.e
 (repo root) to `.env` and fill in your values, or export them in your shell.
 
 **Required for every run** (used by `src/extractor.py`):
-- `ANTHROPIC_API_KEY` — Claude API key for the single-call extraction step.
-- `CLAUDE_MODEL` (optional, defaults to `claude-sonnet-5`).
+- `OPENAI_API_KEY` — OpenAI API key for the single-call extraction step.
+- `OPENAI_MODEL` (optional, defaults to `gpt-4o-mini`).
 
 **Only required for `--source gmail` / `--source all`:**
 - `GMAIL_CREDENTIALS_PATH` (default `credentials.json`) — OAuth client secret JSON

@@ -1,9 +1,9 @@
 import json
 import os
 
-from anthropic import Anthropic
+from openai import OpenAI
 
-MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-5")
+MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
 
 SYSTEM_PROMPT = """You are a task-and-course extraction assistant. You will be given the \
 text of a single email or Slack message. Decide whether it contains an actionable task \
@@ -32,21 +32,24 @@ def _strip_code_fence(raw: str) -> str:
 
 
 def extract(message: dict) -> dict:
-    """Run a single Claude call to classify + extract structured fields from one message."""
-    client = Anthropic()
+    """Run a single OpenAI call to classify + extract structured fields from one message."""
+    client = OpenAI()
     user_content = (
         f"Source: {message['source']}\n"
         f"From: {message.get('sender', 'unknown')}\n"
         f"Subject/Channel: {message.get('subject', message.get('channel', ''))}\n"
         f"Text:\n{message['text']}"
     )
-    response = client.messages.create(
+    response = client.chat.completions.create(
         model=MODEL,
         max_tokens=400,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_content}],
+        response_format={"type": "json_object"},
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_content},
+        ],
     )
-    raw = _strip_code_fence(response.content[0].text)
+    raw = _strip_code_fence(response.choices[0].message.content)
     try:
         parsed = json.loads(raw)
     except json.JSONDecodeError:
