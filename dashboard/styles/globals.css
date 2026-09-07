@@ -1,7 +1,6 @@
 :root {
   color-scheme: light dark;
-  --bg-a: #fbfcfc;
-  --bg-b: #f4f6f6;
+  --bg: #ffffff;
   --glass: rgba(255, 255, 255, 0.68);
   --glass-strong: rgba(255, 255, 255, 0.86);
   --glass-border: rgba(15, 23, 22, 0.07);
@@ -23,8 +22,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg-a: #0b0d0e;
-    --bg-b: #101314;
+    --bg: #0b0d0e;
     --glass: rgba(24, 27, 28, 0.62);
     --glass-strong: rgba(28, 32, 33, 0.82);
     --glass-border: rgba(255, 255, 255, 0.07);
@@ -49,10 +47,7 @@ body {
   min-height: 100%;
   color: var(--text);
   font-family: -apple-system, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  background: radial-gradient(circle at 15% 0%, rgba(20, 184, 166, 0.05), transparent 40%),
-    radial-gradient(circle at 90% 15%, rgba(20, 184, 166, 0.04), transparent 45%),
-    linear-gradient(180deg, var(--bg-a), var(--bg-b));
-  background-attachment: fixed;
+  background: var(--bg);
 }
 
 a {

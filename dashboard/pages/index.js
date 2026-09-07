@@ -82,21 +82,6 @@ export default function Home() {
     return records.filter((r) => r.source === filter);
   }, [records, filter]);
 
-  const stats = useMemo(() => {
-    const total = records.length;
-    const tasks = records.filter((r) => r.type === "task" || r.type === "both").length;
-    const courses = records.filter((r) => r.type === "course" || r.type === "both").length;
-    const overdue = records.filter((r) => dueStatus(r.due_date).cls === "due-overdue").length;
-    const soon = records.filter((r) => dueStatus(r.due_date).cls === "due-soon").length;
-    return [
-      ["Total", total],
-      ["Tasks", tasks],
-      ["Courses", courses],
-      ["Overdue", overdue],
-      ["Due ≤ 7d", soon],
-    ];
-  }, [records]);
-
   return (
     <Layout>
       <header className="header">
@@ -107,15 +92,6 @@ export default function Home() {
             : `${records.length} item(s)${generatedAt ? ` · last run ${new Date(generatedAt).toLocaleString()}` : ""}`}
         </div>
       </header>
-
-      <div className="stats">
-        {stats.map(([label, n]) => (
-          <div className="stat" key={label}>
-            <div className="n">{n}</div>
-            <div className="l">{label}</div>
-          </div>
-        ))}
-      </div>
 
       <div className="filters">
         {FILTERS.map(([value, label]) => (
@@ -217,36 +193,11 @@ export default function Home() {
           color: var(--muted);
           font-size: 0.9rem;
         }
-        .stats {
-          display: flex;
-          gap: 12px;
-          flex-wrap: wrap;
-          padding: 20px clamp(16px, 4vw, 48px);
-        }
-        .stat {
-          background: var(--glass);
-          backdrop-filter: blur(20px) saturate(180%);
-          -webkit-backdrop-filter: blur(20px) saturate(180%);
-          border: 1px solid var(--glass-border);
-          box-shadow: var(--shadow-sm);
-          border-radius: 16px;
-          padding: 12px 18px;
-          min-width: 100px;
-        }
-        .stat .n {
-          font-size: 1.5rem;
-          font-weight: 700;
-          color: var(--text);
-        }
-        .stat .l {
-          font-size: 0.76rem;
-          color: var(--muted);
-        }
         .filters {
           display: flex;
           gap: 8px;
           flex-wrap: wrap;
-          padding: 0 clamp(16px, 4vw, 48px) 20px;
+          padding: 20px clamp(16px, 4vw, 48px) 20px;
         }
         .chip {
           border: 1px solid var(--glass-border);
