@@ -303,7 +303,9 @@ export default function Settings() {
           padding: 9px 12px;
           border-radius: 10px;
           border: 1px solid var(--border);
-          background: rgba(255, 255, 255, 0.5);
+          background: var(--glass);
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
           color: var(--text);
         }
         input:focus {

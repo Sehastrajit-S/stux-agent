@@ -229,7 +229,7 @@ export default function Home() {
         }
         .left-col {
           position: sticky;
-          top: 88px;
+          top: 128px;
         }
         @media (max-width: 860px) {
           .left-col {

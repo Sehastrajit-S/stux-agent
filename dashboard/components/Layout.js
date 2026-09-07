@@ -17,7 +17,7 @@ export default function Layout({ children }) {
           aria-label="Settings"
           title="Settings"
         >
-          <GearIcon />
+          <GearIcon width={20} height={20} />
         </Link>
       </nav>
       <div className="content">{children}</div>
@@ -33,7 +33,7 @@ export default function Layout({ children }) {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 10px 18px;
+          padding: 22px 26px;
           border-radius: 999px;
           background: var(--glass-strong);
           backdrop-filter: blur(20px) saturate(160%);
@@ -44,15 +44,15 @@ export default function Layout({ children }) {
         .brand {
           display: flex;
           align-items: center;
-          gap: 8px;
+          gap: 10px;
           font-weight: 800;
-          font-size: 0.95rem;
+          font-size: 1.1rem;
           letter-spacing: -0.01em;
           color: var(--text);
         }
         .dot {
-          width: 8px;
-          height: 8px;
+          width: 10px;
+          height: 10px;
           border-radius: 50%;
           background: var(--accent);
         }
@@ -60,7 +60,7 @@ export default function Layout({ children }) {
           display: flex;
           align-items: center;
           color: var(--muted);
-          padding: 8px;
+          padding: 10px;
           border-radius: 999px;
           transition: background 0.15s ease, color 0.15s ease;
         }

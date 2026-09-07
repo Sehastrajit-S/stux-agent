@@ -418,7 +418,9 @@ export default function Calendar({ records, selectedDate, onSelectDate }) {
         }
         .week-head-row {
           border-bottom: 1px solid var(--border);
-          background: var(--surface-muted);
+          background: var(--glass);
+          backdrop-filter: blur(14px) saturate(160%);
+          -webkit-backdrop-filter: blur(14px) saturate(160%);
         }
         .week-day-head {
           display: flex;
