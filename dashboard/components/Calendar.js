@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight } from "./Icons";
 
 const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const DAY_MS = 86400000;
+const HOURS = Array.from({ length: 18 }, (_, i) => i + 6); // 6 AM - 11 PM
 
 function startOfWeek(date) {
   const d = new Date(date);
@@ -30,6 +31,12 @@ function sameDay(a, b) {
     a.getMonth() === b.getMonth() &&
     a.getDate() === b.getDate()
   );
+}
+
+function formatHour(h) {
+  const period = h < 12 ? "AM" : "PM";
+  const hour12 = h % 12 === 0 ? 12 : h % 12;
+  return `${hour12} ${period}`;
 }
 
 export default function Calendar({ records, selectedDate, onSelectDate }) {
@@ -107,44 +114,93 @@ export default function Calendar({ records, selectedDate, onSelectDate }) {
         </button>
       </div>
 
-      <div className="cal-weekdays">
-        {WEEKDAYS.map((w) => (
-          <div key={w}>{w}</div>
-        ))}
-      </div>
+      {mode === "month" && (
+        <>
+          <div className="cal-weekdays">
+            {WEEKDAYS.map((w) => (
+              <div key={w}>{w}</div>
+            ))}
+          </div>
+          <div className="cal-grid">
+            {days.map((day) => {
+              const iso = isoDate(day);
+              const items = itemsByDate[iso] || [];
+              const inMonth = day.getMonth() === anchor.getMonth();
+              const isToday = sameDay(day, today);
+              const isSelected = selectedDate === iso;
+              return (
+                <button
+                  type="button"
+                  key={iso}
+                  className={`cal-day${inMonth ? "" : " dim"}${isToday ? " today" : ""}${isSelected ? " selected" : ""}`}
+                  onClick={() => onSelectDate(isSelected ? null : iso)}
+                >
+                  <span className="day-num">{day.getDate()}</span>
+                  {items.length > 0 && (
+                    <span className="day-dots">
+                      {items.slice(0, 4).map((_, i) => (
+                        <span key={i} className="dd" />
+                      ))}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
 
-      <div className={`cal-grid ${mode}`}>
-        {days.map((day) => {
-          const iso = isoDate(day);
-          const items = itemsByDate[iso] || [];
-          const inMonth = mode === "week" || day.getMonth() === anchor.getMonth();
-          const isToday = sameDay(day, today);
-          const isSelected = selectedDate === iso;
-          return (
-            <button
-              type="button"
-              key={iso}
-              className={`cal-day${inMonth ? "" : " dim"}${isToday ? " today" : ""}${isSelected ? " selected" : ""}`}
-              onClick={() => onSelectDate(isSelected ? null : iso)}
-            >
-              <span className="day-num">{day.getDate()}</span>
-              {mode === "month" && items.length > 0 && (
-                <span className="day-dots">
-                  {items.slice(0, 4).map((_, i) => (
-                    <span key={i} className="dd" />
+      {mode === "week" && (
+        <div className="week-agenda">
+          <div className="week-row week-head-row">
+            <div className="time-gutter" />
+            {days.map((day) => {
+              const iso = isoDate(day);
+              const isToday = sameDay(day, today);
+              const isSelected = selectedDate === iso;
+              return (
+                <button
+                  type="button"
+                  key={iso}
+                  className={`week-day-head${isToday ? " today" : ""}${isSelected ? " selected" : ""}`}
+                  onClick={() => onSelectDate(isSelected ? null : iso)}
+                >
+                  <span className="wd-name">{day.toLocaleDateString(undefined, { weekday: "short" })}</span>
+                  <span className="wd-num">{day.getDate()}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="week-row week-allday-row">
+            <div className="time-gutter small">All day</div>
+            {days.map((day) => {
+              const iso = isoDate(day);
+              const items = itemsByDate[iso] || [];
+              return (
+                <div className="week-allday-cell" key={iso}>
+                  {items.map((it, i) => (
+                    <span key={i} className="week-item" title={it.title}>
+                      {it.title}
+                    </span>
                   ))}
-                </span>
-              )}
-              {mode === "week" &&
-                items.slice(0, 3).map((it, i) => (
-                  <span key={i} className="week-item">
-                    {it.title}
-                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="week-hours">
+            {HOURS.map((h) => (
+              <div className="week-row hour-row" key={h}>
+                <div className="time-gutter hour-label">{formatHour(h)}</div>
+                {days.map((day) => (
+                  <div className="hour-cell" key={isoDate(day) + h} />
                 ))}
-            </button>
-          );
-        })}
-      </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {selectedDate && (
         <button type="button" className="clear-filter" onClick={() => onSelectDate(null)}>
@@ -170,7 +226,7 @@ export default function Calendar({ records, selectedDate, onSelectDate }) {
         }
         .cal-title {
           font-weight: 700;
-          font-size: 0.95rem;
+          font-size: 1rem;
         }
         .cal-nav {
           display: flex;
@@ -200,7 +256,7 @@ export default function Calendar({ records, selectedDate, onSelectDate }) {
         .cal-mode {
           display: flex;
           gap: 6px;
-          margin-bottom: 12px;
+          margin-bottom: 14px;
         }
         .cal-mode button {
           border: 1px solid var(--border);
@@ -220,35 +276,28 @@ export default function Calendar({ records, selectedDate, onSelectDate }) {
           display: grid;
           grid-template-columns: repeat(7, 1fr);
           text-align: center;
-          font-size: 0.68rem;
+          font-size: 0.72rem;
           color: var(--muted);
           margin-bottom: 4px;
         }
         .cal-grid {
           display: grid;
           grid-template-columns: repeat(7, 1fr);
-          gap: 4px;
-        }
-        .cal-grid.month .cal-day {
-          aspect-ratio: 1;
-        }
-        .cal-grid.week .cal-day {
-          min-height: 88px;
-          align-items: flex-start;
-          padding-top: 6px;
+          gap: 6px;
         }
         .cal-day {
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 3px;
+          gap: 4px;
+          aspect-ratio: 1;
           border: 1px solid transparent;
           border-radius: 12px;
           background: transparent;
           cursor: pointer;
-          font-size: 0.78rem;
+          font-size: 0.85rem;
           color: var(--text);
-          padding: 2px;
+          padding: 4px;
           overflow: hidden;
         }
         .cal-day:hover {
@@ -262,8 +311,8 @@ export default function Calendar({ records, selectedDate, onSelectDate }) {
           background: var(--accent);
           color: #fff;
           border-radius: 50%;
-          width: 20px;
-          height: 20px;
+          width: 24px;
+          height: 24px;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -274,26 +323,102 @@ export default function Calendar({ records, selectedDate, onSelectDate }) {
         }
         .day-dots {
           display: flex;
-          gap: 2px;
+          gap: 3px;
         }
         .dd {
-          width: 4px;
-          height: 4px;
+          width: 5px;
+          height: 5px;
           border-radius: 50%;
           background: var(--accent);
         }
+
+        .week-agenda {
+          border: 1px solid var(--border);
+          border-radius: 14px;
+          overflow: hidden;
+        }
+        .week-row {
+          display: grid;
+          grid-template-columns: 56px repeat(7, 1fr);
+        }
+        .time-gutter {
+          font-size: 0.68rem;
+          color: var(--muted);
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          padding-right: 8px;
+        }
+        .time-gutter.small {
+          font-size: 0.65rem;
+        }
+        .week-head-row {
+          border-bottom: 1px solid var(--border);
+          background: var(--surface-muted);
+        }
+        .week-day-head {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 2px;
+          padding: 8px 0;
+          background: none;
+          border: none;
+          border-left: 1px solid var(--border);
+          cursor: pointer;
+        }
+        .week-day-head .wd-name {
+          font-size: 0.65rem;
+          color: var(--muted);
+          text-transform: uppercase;
+          letter-spacing: 0.03em;
+        }
+        .week-day-head .wd-num {
+          font-size: 0.9rem;
+          font-weight: 700;
+        }
+        .week-day-head.today .wd-num {
+          color: var(--accent-strong);
+        }
+        .week-day-head.selected {
+          background: var(--accent-soft);
+        }
+        .week-allday-row {
+          border-bottom: 1px solid var(--border);
+        }
+        .week-allday-cell {
+          border-left: 1px solid var(--border);
+          padding: 4px;
+          display: flex;
+          flex-direction: column;
+          gap: 3px;
+          min-height: 30px;
+        }
         .week-item {
-          font-size: 0.62rem;
+          font-size: 0.66rem;
           background: var(--accent-soft);
           color: var(--accent-strong);
           border-radius: 5px;
-          padding: 1px 4px;
-          width: 100%;
-          text-align: left;
+          padding: 2px 5px;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
         }
+        .week-hours {
+          max-height: 480px;
+          overflow-y: auto;
+        }
+        .hour-row {
+          height: 34px;
+          border-bottom: 1px solid var(--border);
+        }
+        .hour-label {
+          transform: translateY(-8px);
+        }
+        .hour-cell {
+          border-left: 1px solid var(--border);
+        }
+
         .clear-filter {
           margin-top: 12px;
           width: 100%;

@@ -149,52 +149,52 @@ export default function Home() {
               );
             })}
           </main>
-
-          <section className="activity">
-            <h2>Recent Activity (last 24h)</h2>
-            {allLoading && <div className="empty">Loading…</div>}
-            {!allLoading && allError === "not_found" && (
-              <div className="empty">
-                No run has recorded raw messages yet. This appears after your next{" "}
-                <code>python run_baseline.py</code> run.
-              </div>
-            )}
-            {!allLoading && !allError && recent.length === 0 && (
-              <div className="empty">
-                No messages from the last 24 hours in the most recent run. If you expected
-                one, check the Gmail query on the Settings page and confirm the message is
-                in the account/label that query searches.
-              </div>
-            )}
-            {recent.map((m, i) => (
-              <div className="activity-row" key={`${m.source}-${m.source_id}-${i}`}>
-                <span
-                  className={`dot ${m.is_relevant ? "ok" : "off"}`}
-                  title={m.is_relevant ? "relevant" : "not relevant"}
-                />
-                <div className="activity-body">
-                  <div className="activity-top">
-                    <span className="activity-subject">{m.subject || "(no subject)"}</span>
-                    <span className="activity-time">
-                      {m.received_at ? new Date(m.received_at).toLocaleString() : ""}
-                    </span>
-                  </div>
-                  <div className="activity-meta">
-                    <SourceIcon source={m.source} />
-                    {m.source} · {m.sender || "unknown sender"}
-                  </div>
-                  {m.summary && <div className="activity-summary">{m.summary}</div>}
-                </div>
-              </div>
-            ))}
-          </section>
         </div>
       </div>
+
+      <section className="activity">
+        <h2>Recent Activity (last 24h)</h2>
+        {allLoading && <div className="empty">Loading…</div>}
+        {!allLoading && allError === "not_found" && (
+          <div className="empty">
+            No run has recorded raw messages yet. This appears after your next{" "}
+            <code>python run_baseline.py</code> run.
+          </div>
+        )}
+        {!allLoading && !allError && recent.length === 0 && (
+          <div className="empty">
+            No messages from the last 24 hours in the most recent run. If you expected
+            one, check the Gmail query on the Settings page and confirm the message is
+            in the account/label that query searches.
+          </div>
+        )}
+        {recent.map((m, i) => (
+          <div className="activity-row" key={`${m.source}-${m.source_id}-${i}`}>
+            <span
+              className={`dot ${m.is_relevant ? "ok" : "off"}`}
+              title={m.is_relevant ? "relevant" : "not relevant"}
+            />
+            <div className="activity-body">
+              <div className="activity-top">
+                <span className="activity-subject">{m.subject || "(no subject)"}</span>
+                <span className="activity-time">
+                  {m.received_at ? new Date(m.received_at).toLocaleString() : ""}
+                </span>
+              </div>
+              <div className="activity-meta">
+                <SourceIcon source={m.source} />
+                {m.source} · {m.sender || "unknown sender"}
+              </div>
+              {m.summary && <div className="activity-summary">{m.summary}</div>}
+            </div>
+          </div>
+        ))}
+      </section>
 
       <style jsx>{`
         .layout-grid {
           display: grid;
-          grid-template-columns: 320px 1fr;
+          grid-template-columns: 1fr 1fr;
           gap: 20px;
           align-items: start;
           padding: 24px clamp(16px, 4vw, 48px) 0;
@@ -335,7 +335,7 @@ export default function Home() {
           border-radius: 6px;
         }
         .activity {
-          margin-bottom: 40px;
+          margin: 20px clamp(16px, 4vw, 48px) 40px;
           padding: 20px 22px 8px;
           background: var(--glass);
           backdrop-filter: blur(20px) saturate(180%);
