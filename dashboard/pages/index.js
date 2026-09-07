@@ -236,10 +236,7 @@ export default function Home() {
         .stat .n {
           font-size: 1.5rem;
           font-weight: 700;
-          background: linear-gradient(135deg, var(--accent-strong), var(--accent));
-          -webkit-background-clip: text;
-          background-clip: text;
-          color: transparent;
+          color: var(--text);
         }
         .stat .l {
           font-size: 0.76rem;
@@ -310,12 +307,13 @@ export default function Home() {
           white-space: nowrap;
         }
         .badge.type {
-          background: var(--accent-soft);
-          color: var(--accent-strong);
+          background: var(--surface-muted);
+          color: var(--text);
         }
         .badge.course {
-          background: var(--accent-soft);
-          color: var(--accent-strong);
+          background: var(--surface-muted);
+          color: var(--text);
+          border: 1px solid var(--border);
         }
         .badge.due-overdue {
           background: var(--red-bg);
@@ -326,11 +324,11 @@ export default function Home() {
           color: var(--orange);
         }
         .badge.due-later {
-          background: var(--green-bg);
-          color: var(--green);
+          background: var(--accent-soft);
+          color: var(--accent-strong);
         }
         .badge.due-none {
-          background: rgba(92, 124, 120, 0.12);
+          background: var(--surface-muted);
           color: var(--muted);
         }
         .summary {

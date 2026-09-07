@@ -219,8 +219,8 @@ export default function Settings() {
           line-height: 1.6;
         }
         .sub code {
-          background: var(--accent-soft);
-          color: var(--accent-strong);
+          background: var(--surface-muted);
+          color: var(--text);
           padding: 1px 6px;
           border-radius: 6px;
         }
@@ -281,7 +281,7 @@ export default function Settings() {
           margin-top: 10px;
           font-size: 0.82rem;
           color: var(--muted);
-          background: rgba(92, 124, 120, 0.08);
+          background: var(--surface-muted);
           padding: 8px 12px;
           border-radius: 10px;
           white-space: pre-wrap;
