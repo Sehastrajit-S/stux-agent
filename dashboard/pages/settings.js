@@ -116,21 +116,11 @@ export default function Settings() {
     <Layout>
       <div className="wrap">
         <h1>Settings</h1>
-        <p className="sub">
-          Saved here to <code>config.json</code> at the repo root and read by{" "}
-          <code>run_baseline.py</code> as defaults on its next run (a CLI flag like{" "}
-          <code>--gmail-query</code> still overrides whatever is saved here). Secrets
-          stay in <code>.env</code> / <code>credentials.json</code> and are never
-          edited on this page — only their presence is shown below.
-        </p>
 
         <section className="panel">
           <h2>Appearance</h2>
           <div className="theme-row">
-            <div>
-              <div className="theme-label">Dark mode</div>
-              <div className="hint">Only applies when toggled here — never follows OS/browser preference.</div>
-            </div>
+            <div className="theme-label">Dark mode</div>
             <button
               type="button"
               role="switch"

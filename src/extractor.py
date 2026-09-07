@@ -18,7 +18,12 @@ Respond with ONLY a JSON object, no other text, matching this schema exactly:
   "course_code": string like "CSE598" if one is mentioned, or null,
   "due_date": "YYYY-MM-DD" if a date is stated or clearly implied, or null,
   "priority": "high" | "medium" | "low" | null,
-  "summary": one sentence explaining why this is or is not relevant
+  "summary": if is_relevant is true, a 2-4 sentence practical overview of what the
+    reader actually needs to do - restate any specific dates/times mentioned, name
+    any form, sign-up sheet, or link that was referenced, and spell out the concrete
+    next step(s) (e.g. "sign up for a presentation slot", "submit via Canvas by the
+    deadline"). If nothing actionable is required beyond reading it, say so briefly.
+    If is_relevant is false, one short sentence explaining why it was skipped.
 }"""
 
 
@@ -42,7 +47,7 @@ def extract(message: dict) -> dict:
     )
     response = client.chat.completions.create(
         model=MODEL,
-        max_tokens=400,
+        max_tokens=550,
         response_format={"type": "json_object"},
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},

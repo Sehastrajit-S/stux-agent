@@ -172,7 +172,6 @@ export default function Home() {
                     <span className={`badge ${status.cls}`}>{status.label}</span>
                     {r.priority && <span className="badge type">{r.priority} priority</span>}
                   </div>
-                  {r.summary && <div className="summary">{r.summary}</div>}
                   <div className="source">
                     <SourceIcon source={r.source} />
                     {r.source}
@@ -375,12 +374,6 @@ export default function Home() {
         .badge.due-none {
           background: var(--surface-muted);
           color: var(--muted);
-        }
-        .summary {
-          color: var(--muted);
-          font-size: 0.85rem;
-          margin-top: 6px;
-          line-height: 1.5;
         }
         .source {
           display: flex;
